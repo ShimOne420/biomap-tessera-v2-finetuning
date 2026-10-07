@@ -263,7 +263,7 @@ Per MSA storico V1, il pooling era la media dei pixel validi nella cella nativa;
 
 ## 14. Estendere MSA alle 17 AOI di sviluppo
 
-`configs/msa_17areas.yaml` include tutte le celle geometriche delle 17 aree storiche più Liguria. È una campagna grande, da avviare dopo il pilot e su SSD. Usa un nuovo split fisso: 13 AOI training, quattro validation (Vercelli, Chianti, Sila, Sardegna interna), Liguria test già osservato. Selezione macro-AOI, non replica della precedente CV a cinque fold.
+`configs/msa_17areas.yaml` include tutte le celle geometriche delle 17 aree storiche più Liguria. È una campagna grande, da avviare dopo il pilot e su SSD. Usa un nuovo split fisso: 13 AOI training, quattro validation (Vercelli, Chianti, Sila, Sardegna interna), Liguria test già osservato. Selezione macro-AOI, non replica della precedente CV a cinque fold. Campania ed Emilia conservano soltanto le celle storiche training; i loro vecchi test e buffer sono esclusi dall’addestramento.
 
 ```powershell
 $LargeRoot = 'E:\BioMAP_17areas'

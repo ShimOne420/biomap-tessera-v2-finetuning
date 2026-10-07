@@ -215,3 +215,11 @@ def test_three_cli_entrypoints_from_another_directory(tmp_path):
         result=subprocess.run([sys.executable,str(ROOT/'scripts'/script),'--help'],cwd=tmp_path,env=env,capture_output=True,text=True,timeout=30)
         assert result.returncode==0,result.stderr
         assert 'export-embeddings' in result.stdout
+
+
+def test_extended_profile_has_all_seventeen_development_areas():
+    cfg=config('msa',argparse.Namespace(config=str(ROOT/'configs/msa_17areas.yaml'),data_root=None,set=[]))
+    f=cells(cfg)
+    assert f[f.partition!='test'].aoi_id.nunique()==17
+    assert f[f.partition=='test'].aoi_id.unique().tolist()==['liguria_levante']
+    assert 'campania_pilot' in set(f[f.partition=='train'].aoi_id)

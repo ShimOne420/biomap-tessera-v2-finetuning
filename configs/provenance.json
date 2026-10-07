@@ -14,10 +14,10 @@
   "split_files": {
     "msa_cells.csv": "10395cfa67329071afc2e125acec2cd22029d2263e6578f7c0fa99d260d350df",
     "bii_cells.csv": "7fa53abab6c88a9a40d72ed0ae90176c642a3afac4f21afb51a3f2fdd1b07232",
-    "msa_17areas_cells.csv": "1e158ae9e5e91a795396306379517f5d28a8e9b6a5f76c9ec5f3d05bd0b71dc1"
+    "msa_17areas_cells.csv": "8caff0dd6146e73c4a90ba9b8067f7ca11628cc9caeb35a7ece8637787e23a8b"
   },
   "extension_counts": {
-    "train": 92873,
+    "train": 96944,
     "validation": 30965,
     "test": 4991
   },
@@ -27,5 +27,6 @@
     "sardegna_interna",
     "vercelli_novara"
   ],
-  "scientific_status": "Existing spatial holdouts are exploratory. Historical V1 pooling differs from 25-point MSA sampling."
+  "scientific_status": "Existing spatial holdouts are exploratory. Historical V1 pooling differs from 25-point MSA sampling.",
+  "extension_pilot_policy": "Campania/Emilia use historical training cells only; old test and buffer cells excluded"
 }

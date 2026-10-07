@@ -1,0 +1,31 @@
+{
+  "tessera_commit": "e368539f7c4711e5f16fdd09801573830e34baf9",
+  "medium_hf_revision": "8c80b926f67cb0b44c2cd41d0226e61741503b9a",
+  "medium_checkpoint_sha256": "3823be7db9d9cfc93f3c2a47c7699be82821ab4e1117d4d2befdb746941ee96e",
+  "historical_references": {
+    "msa": "20261005T152614Z_msa_v1_native1000",
+    "bii": "20261002T153541Z_bii_v1_learning1000",
+    "v1_v2_partial": "20260930T120200Z_paired_v1_v2_abruzzo_liguria"
+  },
+  "historical_dataset_hashes": {
+    "msa": "510e6ed76dd4fabdcfd12b553b7d4ba0e61141fcd029724651a0730c5e609de3",
+    "bii": "30199fdd99a18e3c975d63fa9172b7870645d7894bed401878df76b05f2fc9d2"
+  },
+  "split_files": {
+    "msa_cells.csv": "10395cfa67329071afc2e125acec2cd22029d2263e6578f7c0fa99d260d350df",
+    "bii_cells.csv": "7fa53abab6c88a9a40d72ed0ae90176c642a3afac4f21afb51a3f2fdd1b07232",
+    "msa_17areas_cells.csv": "1e158ae9e5e91a795396306379517f5d28a8e9b6a5f76c9ec5f3d05bd0b71dc1"
+  },
+  "extension_counts": {
+    "train": 92873,
+    "validation": 30965,
+    "test": 4991
+  },
+  "extension_validation_aois": [
+    "calabria_sila",
+    "chianti_siena",
+    "sardegna_interna",
+    "vercelli_novara"
+  ],
+  "scientific_status": "Existing spatial holdouts are exploratory. Historical V1 pooling differs from 25-point MSA sampling."
+}

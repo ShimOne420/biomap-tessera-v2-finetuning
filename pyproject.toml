@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biomap-tessera-v2-finetuning"
+version = "0.1.0"
+description = "Windows-ready TESSERA V2 probing and supervised fine-tuning for GLOBIO MSA and NHM BII"
+requires-python = ">=3.12,<3.13"
+dependencies = ["numpy", "pandas", "PyYAML", "rasterio", "pyproj", "scikit-learn", "scipy", "matplotlib", "requests", "huggingface-hub", "xgboost", "joblib", "torch"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"

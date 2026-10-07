@@ -1,0 +1,14 @@
+.venv/
+local_data/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+*.pt
+*.pth
+*.npz
+*.npy
+*.tif
+*.zip
+*.joblib
+.env
+.DS_Store

@@ -1,0 +1,47 @@
+# BII: riproduzione NHM v2.1.1 2020, scala 0..1. Nessuna validazione in campo.
+indicator: bii
+year: 2020
+data_root: ./local_data
+# Geometrie/split storici: 1000 train, 122 validation, 245 test, buffer storico 15 km.
+cells: configs/bii_cells.csv
+target:
+  mode: official # custom richiede raster e provenienza dichiarati
+  raster: null
+  units: percent # raster NHM 0..100; divisione per 100 automatica
+  provenance: NHM BII v2.1.1, CC-BY-NC-SA-4.0
+  source: https://data.nhm.ac.uk/dataset/bii-developed-by-nhm-v2-1-1-limited-release
+  url: https://data.nhm.ac.uk/downloads/direct/8161226fda7a36ca0b94f2becee9afe1b318d0a8.zip
+storage:
+  max_gib: 50 # totale data-root, inclusi pesi/run; aumentare soltanto sulla SSD con spazio
+  reserve_gib: 20
+model:
+  device: cuda:0
+  checkpoint: null # null scarica Medium verificato; non caricare file .pt non fidati
+  pixel_batch: 32 # limite pixel per forward, distinto dal batch di celle
+sampling:
+  pixels_per_cell: 25 # quadrato: 25,49,100; cambiare crea un protocollo nuovo
+  min_valid_fraction: 0.8
+  min_s2_observations: 8
+  min_s1_observations: 1
+probing:
+  models: [Ridge, HistGB, XGBoost] # Dummy sempre incluso
+  ridge_alpha: 100.0
+  histgb_iterations: 90
+  xgb_estimators: 400
+  workers: 4
+training:
+  head_lr: 0.001
+  encoder_lr: 0.00001
+  weight_decay: 0.01
+  epochs: 50 # per fase, non totale
+  patience: 8
+  min_delta: 0.00001
+  batch_cells: 4 # ridotto automaticamente in caso di CUDA OOM
+  effective_batch_cells: 16 # accumulo gradienti, resta invariato in caso di OOM
+  seeds: [42,43,44]
+  unfreeze_blocks: 1 # ultimi N blocchi di entrambi i backbone, attention pooling e fusione
+  mixed_precision: true
+  activation_checkpointing: true
+  clip_grad: 1.0
+evaluation:
+  block_m: 40000 # selezione: RMSE media per blocco validation, coordinate EPSG:3035

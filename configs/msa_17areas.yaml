@@ -1,0 +1,49 @@
+# Estensione 17 AOI sviluppo + Liguria test già osservato. Nuovo split fisso 13/4 AOI, non replica la CV storica.
+# MSA: riproduzione GLOBIO4 overall 2020, scala 0..1. Nessuna validazione in campo.
+indicator: msa
+year: 2020
+data_root: ./local_data
+# Geometrie/split storici: 1000 train, 122 validation, 245 test, buffer storico 15 km.
+cells: configs/msa_17areas_cells.csv
+target:
+  mode: official # custom richiede raster e provenienza dichiarati
+  raster: null
+  units: unitless # raster MSA custom già diviso per cellarea
+  provenance: GLOBIOweb overall MSA 2020
+  source: https://www.globio.info/globioweb
+  url: null
+storage:
+  max_gib: 250 # totale data-root, inclusi pesi/run; aumentare soltanto sulla SSD con spazio
+  reserve_gib: 20
+model:
+  device: cuda:0
+  checkpoint: null # null scarica Medium verificato; non caricare file .pt non fidati
+  pixel_batch: 32 # limite pixel per forward, distinto dal batch di celle
+sampling:
+  pixels_per_cell: 25 # quadrato: 25,49,100; cambiare crea un protocollo nuovo
+  min_valid_fraction: 0.8
+  min_s2_observations: 8
+  min_s1_observations: 1
+probing:
+  models: [Ridge, HistGB, XGBoost] # Dummy sempre incluso
+  ridge_alpha: 100.0
+  histgb_iterations: 90
+  xgb_estimators: 400
+  workers: 4
+training:
+  head_lr: 0.001
+  encoder_lr: 0.00001
+  weight_decay: 0.01
+  epochs: 50 # per fase, non totale
+  patience: 8
+  min_delta: 0.00001
+  batch_cells: 4 # ridotto automaticamente in caso di CUDA OOM
+  effective_batch_cells: 16 # accumulo gradienti, resta invariato in caso di OOM
+  seeds: [42,43,44]
+  unfreeze_blocks: 1 # ultimi N blocchi di entrambi i backbone, attention pooling e fusione
+  mixed_precision: true
+  activation_checkpointing: true
+  clip_grad: 1.0
+evaluation:
+  grouping: aoi # questo profilo seleziona sulla media delle RMSE delle quattro AOI validation
+  block_m: 40000 # selezione: RMSE media per blocco validation, coordinate EPSG:3035

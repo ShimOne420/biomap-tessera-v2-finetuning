@@ -3,7 +3,7 @@
 ## Verificato localmente
 
 - Ambiente nuovo, separato dal progetto storico: Python 3.12.14, PyTorch 2.10.0 e dipendenze di `requirements-lock.txt`; `pip check` senza conflitti.
-- Test CPU su fixture sintetiche, senza confonderli con dati scientifici: parità normalizzazione/binning/pooling rispetto al codice ufficiale; conversione corretta intensità SAR; gradienti e aggiornamento pesi; controllo frozen immutato; target/griglia e checksum; prepare riprendibile; probing; training progressivo; metriche con target zero; resume identico al run ininterrotto; recupero OOM simulato mantenendo batch effettivo.
+- Test CPU su fixture sintetiche, senza confonderli con dati scientifici: parità normalizzazione/binning/pooling rispetto al codice ufficiale; conversione corretta intensità SAR entro un quanto di storage (1/200 dB, per differenze log10/troncamento tra piattaforme); gradienti e aggiornamento pesi; controllo frozen immutato; target/griglia e checksum; prepare riprendibile; probing; training progressivo; metriche con target zero; resume identico al run ininterrotto; recupero OOM simulato mantenendo batch effettivo.
 - Checkpoint **Medium ufficiale reale**, 21.031.506 parametri, SHA256 verificato contro Hugging Face. Confronto fra forward differenziabile e inferenza ufficiale sugli stessi array sintetici: massimo errore assoluto `3.337860107421875e-06`, output tutti finiti, tolleranza `rtol=2e-5, atol=2e-5`.
 - Risoluzione delle wheel Windows x64/Python 3.12 per le dipendenze bloccate, controllata tramite pip. PyTorch cu128 installato sul PC universitario dal setup ufficiale.
 - Query live Planetary Computer su S1 RTC e S2 L2A: disponibili gli asset attesi e la paginazione STAC. La descrizione ufficiale S1 RTC conferma intensità gamma, non ampiezza.

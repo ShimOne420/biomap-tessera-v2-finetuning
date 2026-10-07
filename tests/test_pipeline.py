@@ -48,7 +48,11 @@ def test_radar_unit_conversion():
     amplitude=np.array([0.,np.nan,.01,.1,1.,10.],dtype=np.float32)
     expected=np.zeros_like(amplitude,dtype=np.int16);valid=np.isfinite(amplitude)&(amplitude>0)
     expected[valid]=np.clip((20*np.log10(amplitude[valid])+50)*200,0,32767).astype(np.int16)
-    np.testing.assert_array_equal(power_to_storage(amplitude**2),expected)
+    # Platform log10 implementations can differ at integer truncation boundaries.
+    # One storage unit is 1/200 dB; the physical conversion must match within this quantum.
+    actual=power_to_storage(amplitude**2)
+    np.testing.assert_allclose(actual,expected,rtol=0,atol=1)
+    assert actual.dtype==np.int16 and np.array_equal(actual[:2],[0,0])
 
 
 def test_gradients_and_frozen_control():

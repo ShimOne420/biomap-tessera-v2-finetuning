@@ -13,7 +13,7 @@ Il Mac richiede OpenMP per XGBoost; nelle verifiche locali è stata usata la lib
 
 ## Verifica automatica Windows/Linux
 
-La CI esegue la suite CPU su entrambi i sistemi. Su Windows esegue anche lo **stesso setup PowerShell documentato**, con wheel CPU. Controllare il risultato in GitHub Actions; CPU CI non certifica CUDA o memoria RTX 5080.
+La CI ha completato con successo setup e test CPU su **Windows e Linux**: [run verificato](https://github.com/ShimOne420/biomap-tessera-v2-finetuning/actions/runs/37599960272). Ogni aggiornamento viene controllato nuovamente dalla stessa suite. Su Windows esegue anche lo **stesso setup PowerShell documentato**, con wheel CPU. Controllare il risultato in GitHub Actions; CPU CI non certifica CUDA o memoria RTX 5080.
 
 ## Da verificare in università
 

@@ -206,3 +206,12 @@ def test_oom_retries_epoch_with_same_effective_batch(synthetic,tmp_path,monkeypa
     saved=torch.load(tmp_path/'oom/last.pt',weights_only=False)
     assert saved['microbatch']==1
     assert saved['fingerprint']['training']['effective_batch_cells']==4
+
+
+def test_three_cli_entrypoints_from_another_directory(tmp_path):
+    import os,subprocess,sys
+    env=os.environ.copy();env.pop('PYTHONPATH',None)
+    for script in ['probe_msa.py','probe_bii.py','finetune.py']:
+        result=subprocess.run([sys.executable,str(ROOT/'scripts'/script),'--help'],cwd=tmp_path,env=env,capture_output=True,text=True,timeout=30)
+        assert result.returncode==0,result.stderr
+        assert 'export-embeddings' in result.stdout

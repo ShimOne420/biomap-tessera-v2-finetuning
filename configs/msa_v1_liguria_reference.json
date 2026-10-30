@@ -1,0 +1,106 @@
+{
+  "training_run": "20260928T111520077028Z",
+  "holdout_run": "20260928T133950415054Z",
+  "development_cells": 127909,
+  "test_cells": 4991,
+  "validation": "3-fold GroupKFold by AOI; no separate validation partition",
+  "n_aois": 17,
+  "cells_sha256": "b3649c5a225f75891b190378470d16d85ff43bdd66c3ae7e94363f4192568d6c",
+  "historical_split_sha256": "f03c65edb6981a47aec520438057fb5d242cb0604d930663d4a4c0699010b6b9",
+  "historical_oof_metrics_sha256": "080155299812c3ae40f7b8b03d18089ff0cfdd7f75b35ef519347c25337bc5be",
+  "zero_based_fold_by_aoi": {
+    "abruzzo_gran_sasso": 1,
+    "appennino_tosco_emiliano": 0,
+    "basilicata_interna": 0,
+    "belluno_dolomiti": 1,
+    "calabria_sila": 2,
+    "campania_pilot": 1,
+    "chianti_siena": 2,
+    "emilia_romagna_bologna": 2,
+    "friuli_prealpi": 2,
+    "puglia_tavoliere": 1,
+    "roma_periurbano": 2,
+    "sardegna_costiera": 1,
+    "sardegna_interna": 0,
+    "sicilia_etna": 1,
+    "sicilia_interna": 0,
+    "trentino_alpi": 0,
+    "vercelli_novara": 2
+  },
+  "original_fold_mapping": "cv_fold + 1 equals the historical fold column",
+  "metrics": {
+    "HistGB": {
+      "n": 4991,
+      "observed_mean": 0.6456610942246369,
+      "observed_std": 0.1627672474585776,
+      "predicted_mean": 0.5991411704153975,
+      "mae": 0.12206058082648942,
+      "rmse": 0.15807773627994595,
+      "bias": -0.046519923809239416,
+      "rrmse_mean": 0.24483082176382137,
+      "mae_pct_of_observed_mean": 18.904744597174442,
+      "rmse_pct_of_observed_mean": 24.483082176382137,
+      "mape_pct": 26.451133059127336,
+      "mape_n": 4991,
+      "r2": 0.05660319323004637,
+      "pearson_r": 0.44473992283755925,
+      "negative_prediction_fraction": 0.0,
+      "above_one_fraction": 0.0,
+      "improvement_vs_dummy_mae": 0.5697627881699431,
+      "improvement_vs_dummy_rmse": 0.4758723003429517,
+      "mae_difference_vs_dummy": -0.16164472747841652,
+      "rmse_difference_vs_dummy": -0.14352383216106704
+    },
+    "DummyMean": {
+      "n": 4991,
+      "observed_mean": 0.6456610942246369,
+      "observed_std": 0.1627672474585776,
+      "predicted_mean": 0.3917405605316162,
+      "mae": 0.2837053083049059,
+      "rmse": 0.301601568441013,
+      "bias": -0.2539205336930207,
+      "rrmse_mean": 0.4671205546358667,
+      "mae_pct_of_observed_mean": 43.94028242411023,
+      "rmse_pct_of_observed_mean": 46.71205546358667,
+      "mape_pct": 44.83441993705383,
+      "mape_n": 4991,
+      "r2": -2.434157246489509,
+      "pearson_r": null,
+      "negative_prediction_fraction": 0.0,
+      "above_one_fraction": 0.0
+    }
+  },
+  "cv_macro_rmse_histgb": 0.1730946658234938,
+  "cv_macro_mae_histgb": 0.13731155375443627,
+  "histgb_params": {
+    "max_iter": 90,
+    "max_leaf_nodes": 15,
+    "learning_rate": 0.05,
+    "l2_regularization": 1.0,
+    "early_stopping": true,
+    "random_state": 20260925
+  },
+  "source_model_code": "biomap-tessera/src/biomap_tessera/msa/campaign/models.py",
+  "limitations": [
+    "Existing Liguria benchmark already observed",
+    "V1 dense pixel means vs V2 stratified 25-point means: not a pure encoder ablation",
+    "No ranking of incomparable historical tests solely by MAPE"
+  ],
+  "fold_counts": [
+    {
+      "cv_fold": 0,
+      "n_train": 89101,
+      "n_validation": 38808
+    },
+    {
+      "cv_fold": 1,
+      "n_train": 83014,
+      "n_validation": 44895
+    },
+    {
+      "cv_fold": 2,
+      "n_train": 83703,
+      "n_validation": 44206
+    }
+  ]
+}

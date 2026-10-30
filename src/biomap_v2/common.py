@@ -77,7 +77,10 @@ def config(indicator, args):
 
 
 def root(cfg):
-    return Path(cfg['data_root']) / cfg['indicator']
+    namespace=cfg.get('dataset_namespace',cfg['indicator'])
+    if not isinstance(namespace,str) or namespace in {'','.','..'} or '/' in namespace or chr(92) in namespace or ':' in namespace:
+        raise ValueError('dataset_namespace deve essere un nome di cartella semplice')
+    return Path(cfg['data_root']) / namespace
 
 
 def budget(cfg, additional=0):

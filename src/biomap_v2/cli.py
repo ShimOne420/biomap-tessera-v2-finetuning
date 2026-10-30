@@ -11,7 +11,7 @@ from .common import config, doctor
 
 def main(indicator=None,finetune=False):
     parser=argparse.ArgumentParser(description='BioMAP TESSERA V2: target modellati, split geografici, Windows/CUDA')
-    parser.add_argument('action',choices=['doctor','download-weights','prepare','run','evaluate','export-embeddings'])
+    parser.add_argument('action',choices=['doctor','download-weights','download-targets','diagnose-targets','prepare','run','evaluate','export-embeddings'])
     if finetune:parser.add_argument('--indicator',choices=['msa','bii'],required=True)
     parser.add_argument('--config',help='Configurazione YAML alternativa')
     parser.add_argument('--data-root',help='Cartella dati locale o SSD')
@@ -31,6 +31,17 @@ def main(indicator=None,finetune=False):
     cfg=config(indicator,args)
     if finetune and args.action=='run' and args.checkpoint:
         cfg['model']['checkpoint']=str(__import__('pathlib').Path(args.checkpoint).resolve())
+    if finetune and cfg['evaluation'].get('mode')=='historical_groupkfold':
+        parser.error('Il profilo storico GroupKFold è riservato al probing; il fine-tuning richiede validation fissa')
+    if args.action in {'download-targets','diagnose-targets'}:
+        from .common import cells
+        from .target_data import ensure_target,locate_target,diagnose
+        frame=cells(cfg)
+        path=ensure_target(cfg,frame,args.target_raster) if args.action=='download-targets' else locate_target(cfg,args.target_raster)
+        diagnosis,directory=diagnose(cfg,frame,path)
+        if not diagnosis.valid_target.all():
+            raise ValueError(f'Target incompleti: nessuna esclusione applicata; leggere {directory}')
+        return directory
     if args.action=='doctor':return doctor(cfg,require_cuda=cfg['model']['device'].startswith('cuda'))
     if args.action=='download-weights':
         from .encoder import weights
@@ -43,6 +54,10 @@ def main(indicator=None,finetune=False):
         from .experiments import probe,train
         return train(cfg,args) if finetune else probe(cfg,args)
     if args.action=='evaluate':
+        if cfg['evaluation'].get('mode')=='historical_groupkfold':
+            if not args.run_dir or args.checkpoint:parser.error('Valutazione benchmark: indicare --run-dir, senza --checkpoint')
+            from .benchmark import evaluate_historical
+            return evaluate_historical(cfg,args)
         if not args.run_dir and not args.checkpoint:parser.error('evaluate richiede --run-dir o --checkpoint')
         if args.checkpoint and not args.run_dir:args.run_dir='.'
         from .experiments import evaluate

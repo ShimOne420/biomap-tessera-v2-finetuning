@@ -23,6 +23,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from .common import budget, cells, digest, root, save_json
+from functools import lru_cache
+from types import SimpleNamespace
 
 BANDS = ['B04','B02','B03','B08','B8A','B05','B06','B07','B11','B12']
 STAC = 'https://planetarycomputer.microsoft.com/api/stac/v1/search'
@@ -69,72 +71,14 @@ def extract(z,names,destination,cfg):
         with z.open(entries[name]) as source,target.open('wb') as output:shutil.copyfileobj(source,output)
 
 
-def target_raster(cfg,frame, supplied=None):
-    base=root(cfg)/'targets';base.mkdir(parents=True,exist_ok=True)
-    if supplied or cfg['target']['mode']=='custom':
-        path=Path(supplied or cfg['target']['raster']).expanduser().resolve()
-        if not path.exists():raise FileNotFoundError(path)
-        save_json(base/'source.json',{'mode':'imported','sha256':digest(path),'year':cfg['year'],
-            'units':cfg['target']['units'],'provenance':cfg['target']['provenance']})
-        return path
-    if cfg['indicator']=='bii':
-        path=base/'bii-2020_v2-1-1.tif'
-        if not path.exists():
-            archive=base/'nhm.zip'
-            if not archive.exists():download(cfg['target']['url'],archive,cfg)
-            unzip_named(archive,['bii-2020_v2-1-1.tif','LICENSE.txt','README.txt'],base,cfg)
-        save_json(base/'source.json',{'source':cfg['target']['source'],'license':'CC-BY-NC-SA-4.0',
-            'sha256':digest(path),'year':2020,'units':'percent'})
-        return path
-    area,denominator=base/'msa_area_10sec.tif',base/'cellarea_km2_10sec.tif'
-    if not (area.exists() and denominator.exists()):
-        api='https://globiowebapi.globio.info/api/serv.py'
-        ident='biomap_v2_'+uuid.uuid4().hex[:16]
-        bbox=[frame.west.min(),frame.south.min(),frame.east.max(),frame.north.max()]
-        s=session()
-        def call(action,**kw):
-            r=s.get(api,params={'action':action,**kw},timeout=90);r.raise_for_status();return r.json()
-        call('StartSummary',id=ident,year='2020',scenario_name='Recent',scenario_layer='msa_2020',
-             region_name='BioMAP V2',region_layer='',region_id='-1',extent=','.join(map(str,bbox)))
-        def wait(status):
-            for _ in range(60):
-                data=call('GetStatus',id=ident)
-                current=data.get('info',{}).get('status')
-                if current==status:return
-                if current not in {'summary running','zip running'}:raise RuntimeError(f'GLOBIO stato: {current}')
-                time.sleep(3)
-            raise TimeoutError('GLOBIO: job non pronto; riprovare prepare')
-        wait('summary ready');call('StartZip',id=ident,name='',surname='',email='',organization='');wait('zip ready')
-        archive=base/'globio.zip'
-        download(api,archive,cfg,params={'action':'GetZipData','id':ident})
-        unzip_named(archive,[area.name,denominator.name],base,cfg)
-    save_json(base/'source.json',{'source':'https://www.globio.info/globioweb','year':2020,
-        'msa_area_sha256':digest(area),'cellarea_sha256':digest(denominator),
-        'formula':'MSA-area / cell-area','redistribution':'source targets not committed'})
-    return area
+def target_raster(cfg,frame,supplied=None):
+    from .target_data import ensure_target
+    return ensure_target(cfg,frame,supplied)
 
 
 def targets(cfg,frame,path):
-    out=frame.copy()
-    with rasterio.open(path) as ds:
-        expected=1/360 if cfg['indicator']=='msa' else 1/12
-        if ds.crs!=rasterio.crs.CRS.from_epsg(4326) or not np.allclose(ds.res,[expected,expected],atol=1e-8):
-            raise ValueError('Target: CRS o risoluzione discordanti dalla griglia delle celle')
-        if ds.transform.b!=0 or ds.transform.d!=0:raise ValueError('Target ruotato non supportato')
-        rr,cc=rasterio.transform.rowcol(ds.transform,out.lon,out.lat)
-        px,py=rasterio.transform.xy(ds.transform,rr,cc)
-        if not np.allclose(px,out.lon,atol=1e-8,rtol=0) or not np.allclose(py,out.lat,atol=1e-8,rtol=0):
-            raise ValueError('Target e centri delle celle non allineati')
-        values=np.array([v[0] for v in ds.sample(zip(out.lon,out.lat),masked=True)],dtype=float)
-    if cfg['indicator']=='msa' and cfg['target']['mode']=='official' and path.name=='msa_area_10sec.tif':
-        with rasterio.open(path.with_name('cellarea_km2_10sec.tif')) as ds:
-            denom=np.array([v[0] for v in ds.sample(zip(out.lon,out.lat),masked=True)],dtype=float)
-        values=np.divide(values,denom,out=np.full_like(values,np.nan),where=denom>0)
-    elif cfg['target']['units']=='percent':values=values/100
-    out['target']=values
-    if not np.isfinite(values).all() or ((values<0)|(values>1)).any():
-        raise ValueError('Target mancanti/fuori [0,1]; correggere sorgenti senza cambiare split')
-    return out
+    from .target_data import validated_targets
+    return validated_targets(cfg,frame,path)
 
 
 def sample_points(cell,n):
@@ -150,9 +94,22 @@ def power_to_storage(power):
     return out
 
 
+@lru_cache(maxsize=8)
+def aoi_bounds(path,mtime):
+    frame=pd.read_csv(path)
+    return {name:SimpleNamespace(west=float(f.west.min()),south=float(f.south.min()),east=float(f.east.max()),north=float(f.north.max())) for name,f in frame.groupby('aoi_id')}
+
+
 def query(cfg,cell,collection,cache):
+    if cfg.get('acquisition',{}).get('shared_catalogs'):
+        geometry=Path(cfg['cells'])
+        cell_bounds=aoi_bounds(str(geometry),geometry.stat().st_mtime_ns)[cell.aoi_id]
+        folder=root(cfg)/'catalogs'/cell.aoi_id
+        folder.mkdir(parents=True,exist_ok=True)
+        cache=folder/f'{cfg["year"]}_{collection}.json'
+    else:cell_bounds=cell
     if cache.exists():return json.loads(cache.read_text())
-    body={'collections':[collection],'bbox':[cell.west,cell.south,cell.east,cell.north],
+    body={'collections':[collection],'bbox':[cell_bounds.west,cell_bounds.south,cell_bounds.east,cell_bounds.north],
           'datetime':f'{cfg["year"]}-01-01T00:00:00Z/{cfg["year"]}-12-31T23:59:59Z','limit':500}
     s=session();url=STAC;method='POST';features=[]
     while url:
@@ -183,14 +140,18 @@ class Reader:
         if band not in item['assets']:raise ValueError(f'Asset {band} assente nella scena {item["id"]}')
         href=self.signed(item['assets'][band]['href'])
         # Never log signed URLs; restrict GDAL network reads to requested COG blocks.
-        try:
-            with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN='EMPTY_DIR',CPL_VSIL_CURL_ALLOWED_EXTENSIONS='.tif',GDAL_HTTP_MAX_RETRY='3'):
+        for attempt in range(3):
+          try:
+            with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN='EMPTY_DIR',CPL_VSIL_CURL_ALLOWED_EXTENSIONS='.tif,.tiff',GDAL_HTTP_MAX_RETRY='3'):
                 with rasterio.open(href) as ds:
                     x,y=transform_coords(4326,ds.crs,points[:,0].tolist(),points[:,1].tolist())
                     result=np.array([float(v[0]) if not np.ma.is_masked(v[0]) else np.nan for v in ds.sample(zip(x,y),masked=True)])
-        except rasterio.errors.RasterioError:
-            raise RuntimeError(f'Lettura COG fallita: scena {item["id"]}, banda {band}; riprovare prepare') from None
-        return result
+            return result
+          except rasterio.errors.RasterioError:
+            self.tokens.clear()
+            if attempt == 2:
+                raise RuntimeError(f'Lettura COG fallita dopo 3 tentativi: scena {item["id"]}, banda {band}; riprovare prepare') from None
+            time.sleep(2 ** attempt)
 
 
 def acquire(cfg,cell,directory):
@@ -267,13 +228,21 @@ def cell_directory(cfg,cell_id):
 
 
 def prepare(cfg,args):
-    frame=cells(cfg);base=root(cfg);base.mkdir(parents=True,exist_ok=True);budget(cfg)
+    frame=cells(cfg);all_cells=frame.copy();base=root(cfg);base.mkdir(parents=True,exist_ok=True);budget(cfg)
     # A limit samples within every partition, ensuring smoke runs still have train/val/test.
     if args.limit:
         if args.limit<3:raise ValueError('--limit minimo 3')
-        sizes={p:args.limit//3+(i<args.limit%3) for i,p in enumerate(['train','validation','test'])}
-        frame=pd.concat([frame[frame.partition==p].head(n) for p,n in sizes.items()],ignore_index=True)
-    path=target_raster(cfg,frame,args.target_raster);frame=targets(cfg,frame,path)
+        parts=[p for p in ['train','validation','test'] if p in set(frame.partition)]
+        sizes={p:args.limit//len(parts)+(i<args.limit%len(parts)) for i,p in enumerate(parts)}
+        if cfg['evaluation'].get('mode')=='historical_groupkfold':
+            if args.limit<4:raise ValueError('Smoke storico: minimo 4 celle per rappresentare tre fold e test')
+            ntest=max(1,args.limit//2);ntrain=args.limit-ntest
+            if ntrain<3:ntest=args.limit-3;ntrain=3
+            pieces=[frame[(frame.partition=='train')&(frame.cv_fold==fold)].head(ntrain//3+(fold<ntrain%3)) for fold in range(3)]
+            pieces.append(frame[frame.partition=='test'].head(ntest))
+            frame=pd.concat(pieces,ignore_index=True)
+        else:frame=pd.concat([frame[frame.partition==p].head(n) for p,n in sizes.items()],ignore_index=True)
+    path=target_raster(cfg,all_cells,args.target_raster);frame=targets(cfg,frame,path)
     selected=[];excluded=[]
     for index,cell in enumerate(frame.itertuples()):
         directory=cell_directory(cfg,cell.cell_id);directory.mkdir(parents=True,exist_ok=True)
@@ -301,6 +270,15 @@ def prepare(cfg,args):
     if target.exists():
         prior=pd.read_csv(target,dtype={'cell_id':str})
         if not prior.cell_id.tolist()==eligible.cell_id.tolist() or not np.allclose(prior.target,eligible.target,rtol=0,atol=1e-10):raise ValueError('Celle eleggibili/target cambiati: usare una nuova data-root per un nuovo studio')
+    if cfg['evaluation'].get('mode')=='historical_groupkfold' and not args.limit:
+        expected=cfg['evaluation']['expected_counts']
+        actual=eligible.partition.value_counts().to_dict()
+        if actual!=expected:
+            destination=base/'diagnostics'/f'{__import__("datetime").datetime.now().strftime("%Y%m%dT%H%M%S%f")}_coverage'
+            destination.mkdir(parents=True)
+            eligible.to_csv(destination/'eligible.csv',index=False)
+            save_json(destination/'coverage.json',{'expected':expected,'actual':actual,'excluded':excluded})
+            raise ValueError(f'Copertura non completa: benchmark storico non pubblicato come equivalente; vedere {destination}')
     eligible.to_csv(target,index=False)
     save_json(target.with_suffix('.json'),{'protocol':PROTOCOL,'year':cfg['year'],'source_cells_sha256':digest(cfg['cells']),
         'eligible_sha256':digest(target),'target_source':json.loads((base/'targets/source.json').read_text()),
@@ -317,7 +295,12 @@ def prepared(cfg,smoke=False):
     if info['config_sampling']!=cfg['sampling'] or info['year']!=cfg['year']:
         raise ValueError('Sampling/anno cambiati: nuova preparazione e data-root richieste')
     frame=pd.read_csv(path,dtype={'cell_id':str})
-    if set(frame.partition)!={'train','validation','test'}:raise ValueError('Occorrono train, validation e test non vuoti')
+    historical=cfg['evaluation'].get('mode')=='historical_groupkfold'
+    required={'train','test'} if historical else {'train','validation','test'}
+    if set(frame.partition)!=required:raise ValueError(f'Partizioni richieste: {sorted(required)}')
+    if historical:
+        from .benchmark import validate_protocol
+        validate_protocol(cfg,frame,smoke)
     for cell in frame.itertuples():
         if digest(cell_directory(cfg,cell.cell_id)/'series.npz')!=cell.series_sha256:raise ValueError('Serie modificata')
     return frame

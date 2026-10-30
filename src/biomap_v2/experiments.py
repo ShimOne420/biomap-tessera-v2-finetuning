@@ -30,6 +30,9 @@ def prediction_frame(frame,pred,model):
 
 
 def probe(cfg,args):
+    if cfg['evaluation'].get('mode')=='historical_groupkfold':
+        from .benchmark import historical_probe
+        return historical_probe(cfg,args)
     from sklearn.dummy import DummyRegressor
     from sklearn.linear_model import Ridge
     from sklearn.ensemble import HistGradientBoostingRegressor

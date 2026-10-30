@@ -8,6 +8,7 @@
 from pathlib import Path
 import json
 import os
+import sqlite3
 import numpy as np
 import pandas as pd
 import torch
@@ -135,12 +136,28 @@ def embeddings(cfg,frame,checkpoint=None):
         if cached['fingerprint']==fingerprint and cached['sha256']==digest(filename):
             return pd.read_csv(filename,dtype={'cell_id':str}),path
     rows=[]
-    with torch.no_grad():
-        for i,cell in enumerate(frame.itertuples()):
-            emb=cell_embedding(encoder,cell_directory(cfg,cell.cell_id)/'series.npz',cfg).float().cpu().numpy()
-            if not np.isfinite(emb).all():raise ValueError('Embedding non finiti')
-            rows.append({'cell_id':cell.cell_id,**{f'f{k:03d}':float(v) for k,v in enumerate(emb)}})
-            if (i+1)%25==0:print(f'embeddings {i+1}/{len(frame)}',flush=True)
+    database=root(cfg)/f'embeddings_{digest(path)[:16]}.sqlite3'
+    database.parent.mkdir(parents=True,exist_ok=True)
+    connection=sqlite3.connect(database)
+    connection.execute('CREATE TABLE IF NOT EXISTS embeddings (cell_id TEXT PRIMARY KEY, series_sha256 TEXT NOT NULL, vector BLOB NOT NULL)')
+    try:
+        with torch.no_grad():
+            for i,cell in enumerate(frame.itertuples()):
+                saved=connection.execute('SELECT series_sha256,vector FROM embeddings WHERE cell_id=?',(cell.cell_id,)).fetchone()
+                if saved and saved[0]==cell.series_sha256:
+                    emb=np.frombuffer(saved[1],dtype='<f4').copy()
+                else:
+                    emb=cell_embedding(encoder,cell_directory(cfg,cell.cell_id)/'series.npz',cfg).float().cpu().numpy().astype('<f4')
+                    if emb.shape!=(128,) or not np.isfinite(emb).all():raise ValueError('Embedding non finiti/shape errata')
+                    if i%100==0:budget(cfg,409600)
+                    connection.execute('INSERT OR REPLACE INTO embeddings VALUES (?,?,?)',(cell.cell_id,cell.series_sha256,emb.tobytes()))
+                if emb.shape!=(128,) or not np.isfinite(emb).all():raise ValueError('Cache embedding corrotta')
+                rows.append({'cell_id':cell.cell_id,**{f'f{k:03d}':float(v) for k,v in enumerate(emb)}})
+                if (i+1)%64==0:connection.commit()
+                if (i+1)%100==0:print(f'embeddings {i+1}/{len(frame)} (ripresa per cella)',flush=True)
+        connection.commit()
+    finally:
+        connection.close()
     features=pd.DataFrame(rows);features.to_csv(filename,index=False)
     save_json(sidecar,{'fingerprint':fingerprint,'sha256':digest(filename)})
     return features,path

@@ -223,3 +223,31 @@ def test_extended_profile_has_all_seventeen_development_areas():
     assert f[f.partition!='test'].aoi_id.nunique()==17
     assert f[f.partition=='test'].aoi_id.unique().tolist()==['liguria_levante']
     assert 'campania_pilot' in set(f[f.partition=='train'].aoi_id)
+
+
+def test_historical_smoke_runs_three_geographic_folds(synthetic):
+    cfg,frame=synthetic
+    frame=frame.copy()
+    frame.loc[frame.partition=='validation','partition']='train'
+    frame['cv_fold']=-1
+    indices=frame.index[frame.partition=='train']
+    for i,index in enumerate(indices):
+        fold=i//2;frame.loc[index,'cv_fold']=fold;frame.loc[index,'aoi_id']=f'development_{fold}'
+    frame.loc[frame.partition=='test','aoi_id']='liguria_levante'
+    cfg['probing']['models']=['HistGB']
+    cfg['probing']['histgb_params']={'max_iter':2,'max_leaf_nodes':5,'early_stopping':False,'random_state':20260925}
+    cfg['evaluation'].update(mode='historical_groupkfold',reference='configs/msa_v1_liguria_reference.json',expected_counts={'train':127909,'test':4991})
+    source=Path(cfg['cells'])
+    frame.drop(columns=['target','valid_fraction','series_sha256']).to_csv(source,index=False)
+    path=Path(cfg['data_root'])/'msa/cells_smoke.csv';frame.to_csv(path,index=False)
+    save_json(path.with_suffix('.json'),{'source_cells_sha256':digest(source),'eligible_sha256':digest(path),'config_sampling':cfg['sampling'],'year':cfg['year']})
+    args=argparse.Namespace(smoke=True,checkpoint=None)
+    out=experiments.probe(cfg,args)
+    oof=pd.read_csv(out/'predictions_cv.csv')
+    assert oof.groupby('model').size().eq(6).all()
+    assert oof.groupby(['model','cell_id']).size().eq(1).all()
+    assert set(oof.cv_fold)=={0,1,2}
+    selection=json.loads((out/'selection.json').read_text());assert selection['selected']=='HistGB'
+    comparison=pd.read_csv(out/'comparison_v1_v2.csv')
+    assert comparison.delta_v2_minus_v1.isna().all()
+    assert set(comparison.comparison)=={'smoke_not_comparable'}

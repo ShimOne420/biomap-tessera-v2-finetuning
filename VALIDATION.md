@@ -33,3 +33,14 @@ Le letture spaziali puntuali COG usano il pixel nativo più vicino per banda; la
 Il nuovo MSA usa 25 posizioni per cella, mentre il riferimento V1 storico usava medie dense. Le metriche V1 esportate sono descrittive e non vengono trasformate in confronti causali appaiati. Ricalcolare V1 sulle stesse posizioni richiede un percorso encoder V1 separato.
 
 Il fine-tuning può ridurre oppure aumentare l'errore. Le predizioni emulano prodotti GLOBIO/NHM e non validano biodiversità osservata sul campo.
+
+
+## Aggiornamento 30 ottobre 2026: replica MSA Liguria e target mancanti
+
+Il contesto fornito dal PC universitario riporta uno smoke MSA di 12 celle e un run frozen terminato senza eccezione il 29 ottobre. Le metriche di quel run Windows non sono state lette qui: non viene dichiarata una nuova accuratezza scientifica.
+
+Il profilo `msa_v1_liguria.yaml` è stato ricostruito dai manifest V1 e dalle membership originali: 127.909 sviluppo, 4.991 test; tre fold con training/validation 89.101/38.808, 83.014/44.895 e 83.703/44.206. Iperparametri HistGB verificati nel codice storico; non esiste validation fissa separata. La membership sviluppo coincide con l'insieme storico e i fold sono importati dagli OOF originali.
+
+Il riuso del ritaglio GLOBIO dello smoke è stato riprodotto geometricamente: 441 celle su 1.367 sono fuori dal suo bounding box. Non è stato verificato che le altre tre NaN segnalate abbiano la stessa causa: servono i raster effettivi Windows. Le nuove diagnosi riportano cause per cella, split e AOI, senza eliminazioni o imputazioni.
+
+Le regressioni includono maschere/NoData, denominatore zero, fuori copertura, griglie non co-registrate, nuovo download senza sovrascrivere raster vecchi, retry COG senza SAS nei messaggi, conteggi/fold storici e probing sintetico GroupKFold. La suite completa è eseguita in CI Windows/Linux sul commit pubblicato. Non è stata avviata dal Mac la campagna scientifica V2 annuale da 132.900 celle.

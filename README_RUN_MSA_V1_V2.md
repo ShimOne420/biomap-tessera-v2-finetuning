@@ -21,7 +21,7 @@ Sono stati verificati report, metriche, membership e codice del progetto V1:
 
 Le validation OOF sommano a 127.909 celle, viste una sola volta fuori dal proprio fit. Non sono celle aggiuntive al training finale. Le vecchie celle test/buffer Campania–Emilia restano fuori dallo sviluppo.
 
-Il profilo nuovo è **`configs/msa_v1_liguria.yaml`**, non `msa.yaml` (che rimane il pilot 1.000/122/245), né il precedente profilo 13/4 AOI. Il manifest nuovo contiene gli stessi identificativi del training V1 e i fold letti direttamente dagli artefatti OOF storici, non rigenerati casualmente.
+Il profilo nuovo è **`configs/msa_v1_liguria.yaml`**, non `msa.yaml` (che rimane il pilot 1.000/122/245), né il precedente profilo 13/4 AOI. Il manifest nuovo contiene gli stessi identificativi del training V1 e i fold letti direttamente dagli artefatti OOF storici, non rigenerati casualmente. Il checksum del manifest normalizza soltanto CRLF/LF per essere identico su Windows e Mac; modifiche a celle, split o fold restano rifiutate.
 
 Riferimento V1 su tutte le 4.991 celle liguri: **MAE 0,12206058; RMSE 0,15807774; MAPE 26,451133%; R² 0,05660319**. È il benchmark geografico discusso nei report, non una dichiarazione del minimo errore fra test su territori diversi.
 

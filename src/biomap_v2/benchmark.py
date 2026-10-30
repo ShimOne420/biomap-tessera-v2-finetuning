@@ -6,12 +6,18 @@
 # Risorse: GPU per embedding, CPU per HistGB; la CV non aggiorna l'encoder né vede i target test.
 # Ripresa: feature SQLite per cella; smoke esplicitamente non confrontabile con il risultato V1 completo.
 import json
+import hashlib
 from pathlib import Path
 import time
 import joblib
 import numpy as np
 import pandas as pd
 from .common import ROOT,cells,digest,make_run,metrics,report,save_json
+
+
+def manifest_digest(path):
+    # Git may check text out as CRLF on Windows; preserve every other byte.
+    return hashlib.sha256(Path(path).read_bytes().replace(b'\r\n',b'\n')).hexdigest()
 
 
 def validate_protocol(cfg,frame,smoke=False):
@@ -30,7 +36,7 @@ def validate_protocol(cfg,frame,smoke=False):
             raise ValueError('Numerosità diversa dal V1: benchmark non equivalente')
         if development.aoi_id.nunique()!=17:raise ValueError('Servono le 17 AOI storiche di sviluppo')
         reference=json.loads((ROOT/cfg['evaluation']['reference']).read_text(encoding='utf-8'))
-        if digest(cfg['cells'])!=reference['cells_sha256']:raise ValueError('Membership/fold del benchmark modificati')
+        if manifest_digest(cfg['cells'])!=reference['cells_sha256']:raise ValueError('Membership/fold del benchmark modificati')
     source=cells(cfg)
     original=source[['cell_id','partition','cv_fold','aoi_id']].copy()
     actual=frame[['cell_id','partition','cv_fold','aoi_id']].merge(original,on='cell_id',validate='one_to_one',suffixes=('_actual','_original'))

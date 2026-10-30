@@ -112,3 +112,14 @@ def test_reader_retries_and_hides_signed_url(tmp_path,monkeypatch):
     monkeypatch.setattr(data.rasterio,'open',fail_open)
     with pytest.raises(RuntimeError) as error:reader.values({'id':'test-scene','assets':{'vv':{'href':'test'}}},'vv',np.array([[8,44]]))
     assert len(attempts)==3 and 'SAS_TOKEN' not in str(error.value)
+
+
+
+def test_manifest_hash_allows_only_windows_line_endings(tmp_path):
+    from biomap_v2.benchmark import manifest_digest
+    lf=tmp_path/'lf.csv';crlf=tmp_path/'crlf.csv';changed=tmp_path/'changed.csv'
+    lf.write_bytes(b'cell_id,partition\n1,train\n2,test\n')
+    crlf.write_bytes(lf.read_bytes().replace(b'\n',b'\r\n'))
+    changed.write_bytes(b'cell_id,partition\n1,test\n2,test\n')
+    assert manifest_digest(lf)==manifest_digest(crlf)
+    assert manifest_digest(lf)!=manifest_digest(changed)

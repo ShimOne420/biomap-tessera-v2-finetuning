@@ -266,6 +266,18 @@ def test_space_guard_inventories_once_for_many_writes(tmp_path):
     p.finish('complete')
 
 
+def test_inventory_tolerates_profile_temp_file_replaced_during_scan(tmp_path,monkeypatch):
+    cfg=make_cfg(tmp_path);profile=PreparationProfile(cfg,1)
+    class ReplacedTempFile:
+        def is_file(self):return True
+        def stat(self):raise FileNotFoundError('heartbeat replaced this temporary file')
+    with monkeypatch.context() as patch:
+        patch.setattr(Path,'rglob',lambda self,pattern:iter([ReplacedTempFile()]))
+        guard=SpaceGuard(cfg,profile)
+    assert guard.used==32*1024**2
+    profile.finish('complete')
+
+
 
 def test_cache_identity_ignores_sas_but_tracks_source_version(tmp_path,caplog):
     from biomap_v2.raster_cache import key_for,install_safe_logging

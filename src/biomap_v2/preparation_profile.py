@@ -106,7 +106,12 @@ class SpaceGuard:
         self.profile=profile;self.lock=threading.RLock()
         self.cap=cfg['storage']['max_gib']*1024**3;self.reserve=cfg['storage']['reserve_gib']*1024**3
         with profile.span('disk_inventory'):
-            self.used=sum(p.stat().st_size for p in self.base.rglob('*') if p.is_file())
+            self.used=0
+            for path in self.base.rglob('*'):
+                # The heartbeat atomically replaces its temporary files during a long inventory.
+                try:
+                    if path.is_file():self.used+=path.stat().st_size
+                except FileNotFoundError:continue
         # Reserve room for profiler + SQLite/WAL metadata, which do not call these writers.
         self.used+=32*1024**2
         self.check(0)

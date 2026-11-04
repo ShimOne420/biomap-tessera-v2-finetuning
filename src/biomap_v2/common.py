@@ -41,6 +41,11 @@ def save_json(path, value):
 def config(indicator, args):
     path = Path(args.config) if args.config else ROOT / 'configs' / f'{indicator}.yaml'
     cfg = yaml.safe_load(path.read_text(encoding='utf-8'))
+    acquisition=cfg.setdefault('acquisition',{})
+    defaults={'engine':'legacy','shared_catalogs':False,'batch_cells':16,'io_workers':4,
+        'block_cache_gib':8,'memory_cache_mib':256,'progress_seconds':10,
+        'read_attempts':3,'connect_timeout_seconds':10,'read_timeout_seconds':30,'http_retries':2}
+    for key,value in defaults.items():acquisition.setdefault(key,value)
     if cfg['indicator'] != indicator:
         raise ValueError('Indicatore CLI e configurazione discordanti')
     for expression in args.set or []:
@@ -73,6 +78,17 @@ def config(indicator, args):
         raise ValueError('probing.models deve contenere regressori supportati')
     if cfg['year'] != 2020 and cfg['target']['mode'] == 'official':
         raise ValueError('I target ufficiali configurati sono del 2020; per altri anni usare un raster custom documentato')
+    if acquisition['engine'] not in {'legacy','optimized'}:raise ValueError('acquisition.engine: legacy oppure optimized')
+    limits={'batch_cells':(1,128),'io_workers':(1,8),'memory_cache_mib':(0,2048),
+        'progress_seconds':(1,120),'read_attempts':(1,5),'connect_timeout_seconds':(1,120),
+        'read_timeout_seconds':(1,120),'http_retries':(0,4)}
+    for key,(low,high) in limits.items():
+        if not isinstance(acquisition[key],int) or not low<=acquisition[key]<=high:
+            raise ValueError(f'acquisition.{key}: intero fra {low} e {high}')
+    if not isinstance(acquisition['block_cache_gib'],(int,float)) or not 0<=acquisition['block_cache_gib']<=1024:
+        raise ValueError('acquisition.block_cache_gib fuori intervallo')
+    if acquisition['engine']=='optimized' and not acquisition['shared_catalogs']:
+        raise ValueError('Il motore ottimizzato richiede cataloghi AOI già condivisi; usare il profilo msa_v1_liguria')
     return cfg
 
 

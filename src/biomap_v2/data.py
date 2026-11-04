@@ -14,6 +14,8 @@ import shutil
 import time
 import uuid
 import zipfile
+import threading
+from contextlib import nullcontext
 import numpy as np
 import pandas as pd
 import rasterio
@@ -31,9 +33,11 @@ STAC = 'https://planetarycomputer.microsoft.com/api/stac/v1/search'
 PROTOCOL = 'stratified-native-cell-v2-power-rtc-v1'
 
 
-def session():
+def session(retries=4,post_retries=False):
     s=requests.Session()
-    s.mount('https://',HTTPAdapter(max_retries=Retry(total=4,backoff_factor=1,status_forcelist=[429,500,502,503,504])))
+    methods=Retry.DEFAULT_ALLOWED_METHODS|{'POST'} if post_retries else Retry.DEFAULT_ALLOWED_METHODS
+    s.mount('https://',HTTPAdapter(max_retries=Retry(total=retries,backoff_factor=1,
+        status_forcelist=[429,500,502,503,504],allowed_methods=methods)))
     return s
 
 
@@ -111,53 +115,90 @@ def query(cfg,cell,collection,cache):
     if cache.exists():return json.loads(cache.read_text())
     body={'collections':[collection],'bbox':[cell_bounds.west,cell_bounds.south,cell_bounds.east,cell_bounds.north],
           'datetime':f'{cfg["year"]}-01-01T00:00:00Z/{cfg["year"]}-12-31T23:59:59Z','limit':500}
-    s=session();url=STAC;method='POST';features=[]
-    while url:
-        r=s.request(method,url,json=body if method=='POST' else None,timeout=90);r.raise_for_status();data=r.json()
-        features.extend(data['features'])
-        link=next((x for x in data.get('links',[]) if x['rel']=='next'),None)
-        if link:url=link['href'];method=link.get('method','GET');body=link.get('body',body)
-        else:url=None
+    optimized=cfg.get('acquisition',{}).get('engine')=='optimized'
+    opts=cfg.get('acquisition',{})
+    s=session(retries=opts.get('http_retries',2),post_retries=True) if optimized else session()
+    timeout=(opts.get('connect_timeout_seconds',10),opts.get('read_timeout_seconds',30)) if optimized else 90
+    url=STAC;method='POST';features=[]
+    try:
+        while url:
+            r=s.request(method,url,json=body if method=='POST' else None,timeout=timeout);r.raise_for_status();data=r.json()
+            features.extend(data['features'])
+            link=next((x for x in data.get('links',[]) if x['rel']=='next'),None)
+            if link:url=link['href'];method=link.get('method','GET');body=link.get('body',body)
+            else:url=None
+    finally:s.close()
     save_json(cache,features)
     return features
 
 
 class Reader:
-    def __init__(self):self.http=session();self.tokens={}
+    def __init__(self,cfg=None,profile=None,guard=None):
+        from .raster_cache import install_safe_logging
+        install_safe_logging()
+        self.http=session();self.tokens={};self.token_lock=threading.RLock();self.local=threading.local()
+        self.point_stride=cfg['sampling']['pixels_per_cell'] if cfg else None
+        self.options=cfg.get('acquisition',{}) if cfg else {};self.profile=profile;self.sessions=[];self.native=None;self.store=None
+        if self.options.get('engine')=='optimized':
+            from .raster_cache import BlockStore,NativeReader
+            self.store=BlockStore(root(cfg)/'observation_cache'/'native_v1',self.options,profile,guard)
+            self.native=NativeReader(self,self.store,self.options,profile)
+
+    def clear_tokens(self):
+        with self.token_lock:self.tokens.clear()
+
     def signed(self,href):
         from urllib.parse import urlparse
-        parsed=urlparse(href);account=parsed.netloc.split('.')[0];container=parsed.path.split('/')[1]
-        key=(account,container)
-        entry=self.tokens.get(key)
-        if entry is None or time.time()-entry[0]>900:
-            secret=os.environ.get('PC_SDK_SUBSCRIPTION_KEY')
-            headers={'Ocp-Apim-Subscription-Key':secret} if secret else {}
-            r=self.http.get(f'https://planetarycomputer.microsoft.com/api/sas/v1/token/{account}/{container}',headers=headers,timeout=45)
-            if r.status_code in (401,403):raise RuntimeError('Accesso MPC negato: impostare PC_SDK_SUBSCRIPTION_KEY oppure importare cache; non salvare la chiave in Git')
-            r.raise_for_status();self.tokens[key]=(time.time(),r.json()['token'])
-        return href.split('?')[0]+'?'+self.tokens[key][1]
+        parsed=urlparse(href);account=parsed.netloc.split('.')[0];container=parsed.path.split('/')[1];key=(account,container)
+        with self.token_lock:
+            entry=self.tokens.get(key)
+            if entry is None or time.time()-entry[0]>900:
+                secret=os.environ.get('PC_SDK_SUBSCRIPTION_KEY');headers={'Ocp-Apim-Subscription-Key':secret} if secret else {}
+                if self.native:
+                    if not hasattr(self.local,'http'):
+                        self.local.http=session(retries=self.options['http_retries']);self.sessions.append(self.local.http)
+                    http=self.local.http;timeout=(self.options['connect_timeout_seconds'],self.options['read_timeout_seconds'])
+                else:http=self.http;timeout=45
+                span=self.profile.span('sas_token') if self.profile else nullcontext()
+                with span:r=http.get(f'https://planetarycomputer.microsoft.com/api/sas/v1/token/{account}/{container}',headers=headers,timeout=timeout)
+                if r.status_code in (401,403):raise RuntimeError('Accesso MPC negato: impostare PC_SDK_SUBSCRIPTION_KEY; cache valida conservata')
+                r.raise_for_status();self.tokens[key]=(time.time(),r.json()['token'])
+            return href.split('?')[0]+'?'+self.tokens[key][1]
+
     def values(self,item,band,points):
         if band not in item['assets']:raise ValueError(f'Asset {band} assente nella scena {item["id"]}')
-        href=self.signed(item['assets'][band]['href'])
-        # Never log signed URLs; restrict GDAL network reads to requested COG blocks.
+        if self.native:return self.native.values(item,band,points)
+        asset=None
+        if self.profile:
+            from .raster_cache import key_for
+            asset=key_for(item,band);self.profile.asset(asset,item,band);self.profile.count('asset_requests',asset=asset)
         for attempt in range(3):
-          try:
-            with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN='EMPTY_DIR',CPL_VSIL_CURL_ALLOWED_EXTENSIONS='.tif,.tiff',GDAL_HTTP_MAX_RETRY='3'):
-                with rasterio.open(href) as ds:
-                    x,y=transform_coords(4326,ds.crs,points[:,0].tolist(),points[:,1].tolist())
-                    result=np.array([float(v[0]) if not np.ma.is_masked(v[0]) else np.nan for v in ds.sample(zip(x,y),masked=True)])
-            return result
-          except rasterio.errors.RasterioError:
-            self.tokens.clear()
-            if attempt == 2:
-                raise RuntimeError(f'Lettura COG fallita dopo 3 tentativi: scena {item["id"]}, banda {band}; riprovare prepare') from None
-            time.sleep(2 ** attempt)
+            try:
+                href=self.signed(item['assets'][band]['href'])
+                with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN='EMPTY_DIR',CPL_VSIL_CURL_ALLOWED_EXTENSIONS='.tif,.tiff',GDAL_HTTP_MAX_RETRY='3'):
+                    with self.profile.span('remote_open',asset) if self.profile else nullcontext():dataset=rasterio.open(href)
+                    with dataset as ds:
+                        if self.profile:self.profile.count('remote_asset_opens',asset=asset)
+                        x,y=transform_coords(4326,ds.crs,points[:,0].tolist(),points[:,1].tolist())
+                        with self.profile.span('legacy_point_read',asset) if self.profile else nullcontext():
+                            result=np.array([float(v[0]) if not np.ma.is_masked(v[0]) else np.nan for v in ds.sample(zip(x,y),masked=True)])
+                return result
+            except rasterio.errors.RasterioError:
+                self.clear_tokens()
+                if attempt==2:raise RuntimeError(f'Lettura COG fallita dopo 3 tentativi: scena {item["id"]}, banda {band}; riprovare prepare') from None
+                time.sleep(2**attempt)
+
+    def close(self):
+        if self.store:self.store.close()
+        self.http.close()
+        for http in self.sessions:http.close()
 
 
-def acquire(cfg,cell,directory):
-    points=sample_points(cell,cfg['sampling']['pixels_per_cell']);reader=Reader();streams={'s2':{},'asc':{},'desc':{}}
+def acquire(cfg,cell,directory,reader=None,profile=None):
+    points=sample_points(cell,cfg['sampling']['pixels_per_cell']);reader=reader or Reader(profile=profile);streams={'s2':{},'asc':{},'desc':{}}
     for collection in ['sentinel-2-l2a','sentinel-1-rtc']:
-        items=query(cfg,cell,collection,directory/f'{collection}.json')
+        with profile.span('catalog_query_or_load') if profile else nullcontext():
+            items=query(cfg,cell,collection,directory/f'{collection}.json')
         for item in items:
             props=item['properties'];day=props['datetime'][:10]
             source='s2' if collection=='sentinel-2-l2a' else ('asc' if props.get('sat:orbit_state')=='ascending' else 'desc')
@@ -166,6 +207,7 @@ def acquire(cfg,cell,directory):
     for source,days in streams.items():
         bands=[];masks=[];doys=[];manifest[source]=[]
         for day,items in sorted(days.items()):
+            if profile:profile.stage(f'{cell.aoi_id} {source} {day}')
             cache=directory/f'{source}_{day}.npz';meta=cache.with_suffix('.json')
             if cache.exists():
                 if not meta.exists() or digest(cache)!=json.loads(meta.read_text())['sha256']:raise ValueError(f'Cache giorno corrotta: {cache.name}')
@@ -185,9 +227,10 @@ def acquire(cfg,cell,directory):
                         take=np.isfinite(raw).all(axis=1)&(raw>0).all(axis=1)&~valid
                         arr[take]=power_to_storage(raw[take]);valid[take]=True
                     if valid.all():break
-                budget(cfg,arr.nbytes+valid.nbytes+4096)
-                np.savez_compressed(cache,bands=arr,valid=valid)
-                save_json(meta,{'sha256':digest(cache),'scene_ids':[i['id'] for i in items]})
+                with profile.span('legacy_disk_budget') if profile else nullcontext():budget(cfg,arr.nbytes+valid.nbytes+4096)
+                with profile.span('cache_write') if profile else nullcontext():
+                    np.savez_compressed(cache,bands=arr,valid=valid)
+                    save_json(meta,{'sha256':digest(cache),'scene_ids':[i['id'] for i in items]})
             bands.append(arr);masks.append(valid)
             # Official public inference contract limits DOY to 365. 2020-12-31 maps to 365.
             doys.append(min(datetime.fromisoformat(day).timetuple().tm_yday,365))
@@ -228,7 +271,7 @@ def cell_directory(cfg,cell_id):
 
 
 def prepare(cfg,args):
-    frame=cells(cfg);all_cells=frame.copy();base=root(cfg);base.mkdir(parents=True,exist_ok=True);budget(cfg)
+    frame=cells(cfg);all_cells=frame.copy()
     # A limit samples within every partition, ensuring smoke runs still have train/val/test.
     if args.limit:
         if args.limit<3:raise ValueError('--limit minimo 3')
@@ -242,27 +285,60 @@ def prepare(cfg,args):
             pieces.append(frame[frame.partition=='test'].head(ntest))
             frame=pd.concat(pieces,ignore_index=True)
         else:frame=pd.concat([frame[frame.partition==p].head(n) for p,n in sizes.items()],ignore_index=True)
-    path=target_raster(cfg,all_cells,args.target_raster);frame=targets(cfg,frame,path)
+    from .preparation import preparation_lock
+    from .preparation_profile import PreparationProfile
+    with preparation_lock(cfg):
+        profile=PreparationProfile(cfg,len(frame))
+        try:
+            result=_prepare_run(cfg,args,frame,all_cells,profile)
+        except KeyboardInterrupt:
+            profile.finish('interrupted');raise
+        except BaseException:
+            profile.finish('failed');raise
+        else:
+            profile.finish('complete');return result
+
+
+def _prepare_run(cfg,args,frame,all_cells,profile):
+    base=root(cfg);base.mkdir(parents=True,exist_ok=True)
+    profile.stage('target acquisition and validation')
+    with profile.span('target_acquisition'):path=target_raster(cfg,all_cells,args.target_raster)
+    with profile.span('target_validation'):frame=targets(cfg,frame,path)
     selected=[];excluded=[]
+    optimized=cfg.get('acquisition',{}).get('engine')=='optimized'
+    results=None
+    if optimized:
+        from .preparation import acquire_optimized
+        results=acquire_optimized(cfg,frame,args,profile)
+    else:profile.start_work()
     for index,cell in enumerate(frame.itertuples()):
         directory=cell_directory(cfg,cell.cell_id);directory.mkdir(parents=True,exist_ok=True)
-        if args.import_cache:
-            source=Path(args.import_cache)/cfg['indicator']/'series'/directory.name
-            if source.exists() and not (directory/'series.npz').exists():
-                budget(cfg,sum(p.stat().st_size for p in source.rglob('*') if p.is_file()))
-                shutil.copytree(source,directory,dirs_exist_ok=True)
-        data=directory/'series.npz';meta=directory/'manifest.json'
-        if data.exists():
-            if not meta.exists():raise ValueError('Cache senza manifest: non usare array storici non verificati')
-            info=json.loads(meta.read_text())
-            if info['protocol']!=PROTOCOL or info['year']!=cfg['year'] or info.get('sampling')!=cfg['sampling'] or not np.allclose(info.get('bounds',[]),[cell.west,cell.south,cell.east,cell.north],atol=1e-10,rtol=0):
-                raise ValueError('Cache incompatibile; scegliere una nuova --data-root')
-            if digest(data)!=info['sha256']:raise ValueError('Cache cella corrotta')
-            fraction=info['valid_fraction']
-        else:fraction=acquire(cfg,cell,directory)
+        data=directory/'series.npz'
+        if optimized:
+            fraction=results[cell.cell_id]['fraction']
+        else:
+            if args.import_cache:
+                source=Path(args.import_cache)/cfg['indicator']/'series'/directory.name
+                if source.exists() and not (directory/'series.npz').exists():
+                    budget(cfg,sum(p.stat().st_size for p in source.rglob('*') if p.is_file()))
+                    shutil.copytree(source,directory,dirs_exist_ok=True)
+            data=directory/'series.npz';meta=directory/'manifest.json'
+            was_cached=data.exists()
+            if data.exists():
+                if not meta.exists():raise ValueError('Cache senza manifest: non usare array storici non verificati')
+                info=json.loads(meta.read_text())
+                if info['protocol']!=PROTOCOL or info['year']!=cfg['year'] or info.get('sampling')!=cfg['sampling'] or not np.allclose(info.get('bounds',[]),[cell.west,cell.south,cell.east,cell.north],atol=1e-10,rtol=0):
+                    raise ValueError('Cache incompatibile; scegliere una nuova --data-root')
+                if digest(data)!=info['sha256']:raise ValueError('Cache cella corrotta')
+                fraction=info['valid_fraction']
+            else:
+                reader=Reader(profile=profile)
+                try:fraction=acquire(cfg,cell,directory,reader=reader,profile=profile)
+                finally:reader.close()
+            profile.cell(cached=was_cached,excluded=fraction is None)
         if fraction is None:excluded.append({'cell_id':cell.cell_id,'reason':'insufficient_coverage'})
-        else:selected.append({**cell._asdict(),'valid_fraction':fraction,'series_sha256':digest(data)})
-        print(f'prepare {cfg["indicator"]}: {index+1}/{len(frame)} {cell.cell_id}',flush=True)
+        else:selected.append({**cell._asdict(),'valid_fraction':fraction,'series_sha256':results[cell.cell_id]['sha256'] if optimized else digest(data)})
+        if not optimized:profile.flush()
     eligible=pd.DataFrame(selected)
     if len(eligible)==0:raise ValueError('Nessuna cella eleggibile')
     filename='cells_smoke.csv' if args.limit else 'cells.csv'

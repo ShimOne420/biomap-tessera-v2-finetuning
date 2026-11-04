@@ -53,6 +53,16 @@ training:
   activation_checkpointing: true
   clip_grad: 1.0
 acquisition:
+  engine: optimized # legacy conserva il percorso originale per confronti di equivalenza
+  batch_cells: 16 # soltanto raggruppamento I/O; celle e 25 punti rimangono identici
+  io_workers: 4 # parallelo tra bande, non nel mosaicking deterministico
+  block_cache_gib: 8 # LRU di soli blocchi temporanei; nessuna serie completata eliminata
+  memory_cache_mib: 256
+  progress_seconds: 10
+  read_attempts: 3
+  connect_timeout_seconds: 10
+  read_timeout_seconds: 30
+  http_retries: 2
   shared_catalogs: true # un catalogo annuale per AOI, non 132.900 copie
 evaluation:
   mode: historical_groupkfold

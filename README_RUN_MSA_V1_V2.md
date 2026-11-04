@@ -2,6 +2,8 @@
 
 Questa guida usa il PC universitario Windows e i dati nella cartella sorella `..\data`. Le modifiche si ricevono con `git pull`; i run si eseguono sul PC con RTX 5080. Non servono file sull'SSD del Mac.
 
+**Aggiornamento prestazioni:** `prepare` usa automaticamente cache nativa condivisa, lotti di 16 celle e quattro worker I/O. Non serve cambiare il comando né riscaricare le serie complete. Prima del pull fermare il vecchio processo con Ctrl+C e attendere il prompt. [Diagnosi, comandi di ripresa e profilazione con velocità/ETA](PREPARAZIONE_MSA_PRESTAZIONI.md).
+
 ## 1. Quale esperimento stiamo riproducendo
 
 Sono stati verificati report, metriche, membership e codice del progetto V1:
@@ -75,6 +77,7 @@ BIOMAP_TESSERA_V2/
     msa_v1_liguria/             NUOVO profilo e run
       targets/
       catalogs/
+      observation_cache/native_v1/  blocchi raster condivisi e limitati tramite LRU
       series/
       diagnostics/
       runs/
@@ -123,7 +126,7 @@ Non serve completare il pilot 1.367 celle per iniziare il profilo Liguria, che u
 
 Si scaricano serie Sentinel-1/2 annuali su 12 celle: sei di sviluppo, distribuite sui tre fold, e sei liguri. I target sono già completi dal passo 5. La metrica dello smoke **non si confronta** con il 26,45% sulle 4.991 celle V1.
 
-Per i cataloghi Sentinel vengono condivisi gli item per AOI; le osservazioni mancanti restano distinte da quelle valide. Le letture COG supportano `.tif` e `.tiff`, tre tentativi controllati e non espongono SAS URL negli errori.
+Per i cataloghi Sentinel vengono condivisi gli item per AOI; le osservazioni mancanti restano distinte da quelle valide. Le letture COG supportano `.tif` e `.tiff`, tre tentativi controllati e non espongono SAS URL negli errori. I blocchi nativi vengono riusati fra celle vicine; le priorità delle scene sono applicate separatamente a ciascuna cella, nello stesso ordine del percorso originale. Ogni dieci secondi vengono stampati avanzamento e fase corrente; i report dettagliati sono sotto `diagnostics/TIMESTAMP_prepare`.
 
 Se Sentinel-1 restituisce 401/403 può essere necessaria la chiave Planetary Computer già descritta nel README principale. Impostarla solo nella sessione, mai nei file Git:
 

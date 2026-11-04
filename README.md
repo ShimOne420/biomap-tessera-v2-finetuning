@@ -4,6 +4,8 @@
 
 **Preparazione MSA lenta:** il profilo Liguria usa ora lotti di celle, cache raster condivisa e quattro worker I/O. [Diagnosi, aggiornamento, ripresa e lettura di tempi/ETA](PREPARAZIONE_MSA_PRESTAZIONI.md). Le serie valide già acquisite vengono conservate; celle, date, punti e protocollo rimangono invariati.
 
+Il [report tecnico delle correzioni](REPORT_CORREZIONI_PREPARAZIONE_MSA.md) descrive ogni intervento sul codice, i test di equivalenza e le prestazioni ancora da misurare sul PC universitario.
+
 Repository operativo per **Windows nativo, NVIDIA RTX 5080 16 GB, 32 GB RAM**. L'obiettivo è confrontare gli embedding V2 frozen con quelli ottenuti aggiornando i pesi dello student **Medium** (~21 milioni di parametri), per riprodurre **GLOBIO overall MSA 2020** e **NHM BII v2.1.1 2020**.
 
 **Stato:** codice e protocollo implementati; test CPU, parità con l'inferenza ufficiale e controlli delle dipendenze sono descritti in `VALIDATION.md`. La prova CUDA/VRAM effettiva richiede il computer universitario. Nessun risultato di fine-tuning scientifico è già garantito. I test storici sono già osservati e hanno ruolo esplorativo. Umbria nord resta sigillata.

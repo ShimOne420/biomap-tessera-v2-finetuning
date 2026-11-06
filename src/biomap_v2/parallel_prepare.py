@@ -14,7 +14,10 @@
 #   3. pending_cells conta le celle mancanti per area e le aree complete vengono saltate.
 #   4. Divide in parti uguali lo spazio disponibile: ogni processo riceve la sua quota con --max-new-gib.
 #   5. worker_command avvia "prepare --aoi AREA" per ciascuna area, fino a N insieme.
-#   6. Ogni 30 secondi summary legge i progress.json e stampa celle salvate, stima, velocità e ETA.
+#   6. Ogni 30 secondi summary legge i progress.json dei soli report creati da questa esecuzione e stampa
+#      celle salvate, stima, velocità e ETA.
+#      Velocità ed ETA partono dopo BASELINE_SECONDS, per non contare i giorni già salvati in un run
+#      precedente. Sono indicative: i giorni Sentinel-2 vengono per primi e costano più di quelli Sentinel-1.
 #   7. Un processo terminato con errore riparte dopo RESTART_DELAY_SECONDS, al massimo MAX_RESTARTS volte;
 #      gli altri continuano. Riparte dai propri checkpoint.
 #   8. Finite tutte le aree senza --aois, esegue un prepare completo, che valida tutte le celle e scrive
@@ -43,6 +46,7 @@ from .common import cells, root, save_json
 POLL_SECONDS=30
 RESTART_DELAY_SECONDS=60
 MAX_RESTARTS=5
+BASELINE_SECONDS=300
 
 
 def pending_cells(cfg,frame):
@@ -73,18 +77,20 @@ def worker_command(cfg,args,area,share):
     return command
 
 
-def latest_progress(diagnostics,area):
-    reports=sorted(diagnostics.glob(f'*_{area}_prepare'),key=lambda path:path.name)
+def latest_progress(diagnostics,area,since=None):
+    # Report names start with a UTC timestamp: older runs must not count in this run's totals.
+    reports=sorted((path for path in diagnostics.glob(f'*_{area}_prepare') if since is None or path.name>=since),key=lambda path:path.name)
     if not reports:return None
     try:return json.loads((reports[-1]/'progress.json').read_text(encoding='utf-8'))
     except (OSError,ValueError):return None
 
 
-def summary(diagnostics,areas,pending,started,running,restarts):
+def summary(diagnostics,areas,pending,started,running,restarts,baseline=None,since=None):
     # Finished days give a live estimate; cells are counted only once saved to disk.
+    # baseline=(seconds,cells) excludes the days recovered instantly from checkpoints from the rate.
     saved=0;estimated=0;reads=0;failures=0;details={}
     for area in areas:
-        state=latest_progress(diagnostics,area)
+        state=latest_progress(diagnostics,area,since)
         if state is None:continue
         new=state.get('new_cells',0);saved+=new;counters=state.get('counters',{})
         reads+=counters.get('remote_blocks_read',0);failures+=counters.get('remote_read_failures',0)
@@ -92,7 +98,8 @@ def summary(diagnostics,areas,pending,started,running,restarts):
         estimated+=max(new,cells_in_batch*done/total if total else 0)
         details[area]={'new_cells':new,'days_done':done,'days_total':total,'phase':state.get('phase'),'status':state.get('status')}
     elapsed=time.monotonic()-started;total=sum(pending.values())
-    rate=estimated/elapsed*3600 if elapsed>0 else 0
+    rate=0
+    if baseline is not None and elapsed>baseline[0]:rate=max(estimated-baseline[1],0)/(elapsed-baseline[0])*3600
     return {'elapsed_seconds':elapsed,'running':sorted(running),'pending_at_start':total,'saved_cells':saved,
         'estimated_cells':estimated,'estimated_cells_per_hour':rate,'eta_hours':(total-estimated)/rate if rate else None,
         'remote_blocks_read':reads,'blocks_per_second':reads/elapsed if elapsed>0 else 0,'remote_read_failures':failures,
@@ -119,7 +126,7 @@ def run_parallel(cfg,args):
     available=min(cap-used_bytes(cfg['data_root'])/1024**3,free)
     share=max(available,0)/limit if limit else 0
     print(f'parallel: {sum(pending.values())} celle in {len(queue)} aree, {limit} processi, {share:.2f} GiB per processo; log {logs}',flush=True)
-    running={};restarts={area:0 for area in queue};retry_at={};failed=[];started=time.monotonic();last_print=0
+    running={};restarts={area:0 for area in queue};retry_at={};failed=[];started=time.monotonic();last_print=0;baseline=None
     stop=time.monotonic()+args.stop_after_minutes*60 if args.stop_after_minutes else None
     stopped=False
 
@@ -156,14 +163,16 @@ def run_parallel(cfg,args):
             while queue and len(running)<limit:
                 launch(queue.pop(0));time.sleep(1)
             if now-last_print>=POLL_SECONDS:
-                last_print=now;state=summary(diagnostics,list(pending),pending,started,running,restarts)
+                last_print=now;state=summary(diagnostics,list(pending),pending,started,running,restarts,baseline,stamp)
+                if baseline is None and state['elapsed_seconds']>=BASELINE_SECONDS:
+                    baseline=(state['elapsed_seconds'],state['estimated_cells'])
                 save_json(logs/'parallel_progress.json',state)
                 eta=f'{state["eta_hours"]:.1f}h' if state['eta_hours'] is not None else 'n/d'
                 print(f'parallel: attive={len(running)} salvate={state["saved_cells"]} stimate={state["estimated_cells"]:.0f}/{state["pending_at_start"]} | {state["estimated_cells_per_hour"]:.0f}/h ETA={eta} | blocchi/s={state["blocks_per_second"]:.1f} errori={state["remote_read_failures"]}',flush=True)
             time.sleep(1)
     except KeyboardInterrupt:
         halt();raise
-    state=summary(diagnostics,list(pending),pending,started,running,restarts)
+    state=summary(diagnostics,list(pending),pending,started,running,restarts,baseline,stamp)
     state['status']='stopped' if stopped else ('failed' if failed else 'complete');state['failed']=failed
     save_json(logs/'parallel_progress.json',state)
     print(f'parallel: {state["status"]}; salvate={state["saved_cells"]} stimate={state["estimated_cells"]:.0f}; report {logs/"parallel_progress.json"}',flush=True)

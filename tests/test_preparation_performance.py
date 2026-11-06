@@ -347,6 +347,21 @@ def test_disabled_block_cache_leaves_existing_cache_untouched(tmp_path,observati
     assert {path:digest(path) for path in cache.rglob('*') if path.is_file()}==before
 
 
+def test_parallel_rate_ignores_days_recovered_before_baseline(tmp_path):
+    from biomap_v2 import parallel_prepare
+    report=tmp_path/'20261106T000000000000Z_area_prepare';report.mkdir()
+    (report/'progress.json').write_text(json.dumps({'new_cells':0,'batch_days_total':100,'batch_days_done':60,'batch_cells':1000,'counters':{}}))
+    started=time.monotonic()-1000
+    assert parallel_prepare.summary(tmp_path,['area'],{'area':1000},started,{},{})['estimated_cells_per_hour']==0
+    state=parallel_prepare.summary(tmp_path,['area'],{'area':1000},started,{},{},(640,300))
+    assert state['estimated_cells']==600 and 2900<state['estimated_cells_per_hour']<3100
+    assert 0.1<state['eta_hours']<0.2
+    # A report from an earlier run must not add its blocks to this run's totals.
+    (report/'progress.json').write_text(json.dumps({'new_cells':0,'batch_days_total':100,'batch_days_done':60,'batch_cells':1000,'counters':{'remote_blocks_read':5000}}))
+    assert parallel_prepare.summary(tmp_path,['area'],{'area':1000},started,{},{})['remote_blocks_read']==5000
+    assert parallel_prepare.summary(tmp_path,['area'],{'area':1000},started,{},{},None,'20261107T000000000000Z')['remote_blocks_read']==0
+
+
 def test_share_limits_one_worker_within_global_cap(tmp_path):
     cfg=make_cfg(tmp_path);cfg['storage']['max_new_gib']=1e-6
     profile=PreparationProfile(cfg,1);guard=SpaceGuard(cfg,profile)

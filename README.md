@@ -2,9 +2,9 @@
 
 **Nuovo run MSA comparativo V1/V2 (127.909 sviluppo, 4.991 Liguria, tre fold geografici): [guida Windows dedicata](README_RUN_MSA_V1_V2.md).** Include diagnosi/recupero dei target mancanti dopo lo smoke.
 
-**Preparazione MSA lenta:** il profilo Liguria usa ora lotti di celle, cache raster condivisa e quattro worker I/O. [Diagnosi, aggiornamento, ripresa e lettura di tempi/ETA](PREPARAZIONE_MSA_PRESTAZIONI.md). Le serie valide già acquisite vengono conservate; celle, date, punti e protocollo rimangono invariati.
+**Preparazione MSA accelerata:** il profilo Liguria tratta ora ogni area come un unico lotto e può lavorare con un processo per area. Su 1.200 celle reali già complete il nuovo motore produce file identici byte per byte; la velocità è limitata dalla banda di rete. Vedere [Preparazione parallela](#preparazione-parallela-per-aree) e il [report dettagliato delle modifiche](REPORT_ACCELERAZIONE_PREPARE_MSA.md). Le serie valide già acquisite vengono conservate; celle, date, punti e protocollo rimangono invariati.
 
-Il [report tecnico delle correzioni](REPORT_CORREZIONI_PREPARAZIONE_MSA.md) descrive ogni intervento sul codice, i test di equivalenza e le prestazioni ancora da misurare sul PC universitario.
+Il [report tecnico delle correzioni precedenti](REPORT_CORREZIONI_PREPARAZIONE_MSA.md) e la [guida di diagnosi](PREPARAZIONE_MSA_PRESTAZIONI.md) descrivono la prima versione del motore ottimizzato.
 
 Repository operativo per **Windows nativo, NVIDIA RTX 5080 16 GB, 32 GB RAM**. L'obiettivo è confrontare gli embedding V2 frozen con quelli ottenuti aggiornando i pesi dello student **Medium** (~21 milioni di parametri), per riprodurre **GLOBIO overall MSA 2020** e **NHM BII v2.1.1 2020**.
 
@@ -114,7 +114,7 @@ Preparare 12 celle per indicatore, distribuite fra train/validation/test:
 
 `--limit` vale per `prepare`; salva `cells_smoke.csv`. `--smoke` seleziona quel file nei comandi successivi. Le serie sono annuali anche nello smoke: pochi giorni non rappresenterebbero il protocollo reale. Il limite è 12 celle totali, non 12 per split.
 
-Queste metriche misurano il funzionamento del percorso; **non sono risultati scientifici**. Controllare copertura, assenza di valori non finiti, tempi e memoria. Se un errore rete interrompe `prepare`, rieseguire lo stesso comando: cataloghi, giorni e celle completati vengono verificati e riusati. Dopo il consolidamento verificato di una cella, solo i suoi intermedi per giorno vengono rimossi; i dati originali esterni restano intatti.
+Queste metriche misurano il funzionamento del percorso; **non sono risultati scientifici**. Controllare copertura, assenza di valori non finiti, tempi e memoria. Se un errore rete interrompe `prepare`, rieseguire lo stesso comando: cataloghi, giorni e celle completati vengono verificati e riusati. Dopo il salvataggio verificato delle celle, solo i checkpoint giornalieri e gli eventuali intermedi per cella del vecchio formato vengono rimossi; i dati originali esterni restano intatti.
 
 ## 7. Prova tecnica del fine-tuning MSA e BII
 
@@ -145,6 +145,32 @@ Modificare `model.pixel_batch` non cambia il campione. Ridurre i pixel campionat
 Senza `--smoke` si usa `cells.csv`. Il numero finale può essere minore di 1.367 se alcune celle non raggiungono la copertura Sentinel richiesta: le esclusioni sono nel manifest e tutte le varianti usano lo stesso insieme eleggibile. Errori rete non vengono convertiti silenziosamente in esclusioni.
 
 Regressori: Dummy Mean sempre presente, Ridge con scaler train-only, HistGradientBoosting e XGBoost. Hyperparametri nel YAML, selezione solo tramite media RMSE dei blocchi geografici di validation. Il test non sceglie il regressore.
+
+### Preparazione parallela per aree
+
+Vale per il profilo `configs/msa_v1_liguria.yaml`, che usa il motore ottimizzato senza cache di blocchi:
+
+```powershell
+& $Python scripts\probe_msa.py prepare --config configs\msa_v1_liguria.yaml --data-root $DataRoot --parallel-aois 4
+```
+
+**Cosa fa:** avvia un processo per area, al massimo 4 insieme, e al termine esegue un `prepare` completo che valida tutte le celle e scrive `cells.csv`. Per riprendere dopo un arresto basta rilanciare lo stesso comando: celle complete e giorni già salvati vengono riusati.
+
+**Come scegliere il numero di processi:** conta la banda. Controllare il collegamento con `Get-NetAdapter`. A 100 Mbps il totale misurato è uguale con 2 o 4 processi e peggiora con 8, quindi 4 è il valore consigliato. Con un collegamento più veloce si può provare a salire; prima conviene misurare per 10-15 minuti:
+
+```powershell
+& $Python scripts\probe_msa.py prepare --config configs\msa_v1_liguria.yaml --data-root $DataRoot --parallel-aois 8 --aois area1,area2,area3,area4,area5,area6,area7,area8 --stop-after-minutes 12
+```
+
+Una prova con `--aois` o `--stop-after-minutes` non esegue la validazione finale. Il valore da confrontare è `blocchi/s`: `stimate` ed `ETA` sono indicativi e `salvate` cresce solo quando un'area ha completato tutti i giorni.
+
+**Dove guardare:** ogni run crea `diagnostics\<timestamp>_parallel`, con un log per area e `parallel_progress.json`.
+
+**Dopo una modifica al motore:** prima di scaricare nuove celle, verificare l'equivalenza con quelle già complete. Il comando le riscarica altrove e fallisce alla prima differenza; usare una `--workdir` breve e fuori dalla data-root:
+
+```powershell
+& $Python scripts\verify_prepare_equivalence.py --config configs\msa_v1_liguria.yaml --data-root $DataRoot --workdir D:\verify --aois abruzzo_gran_sasso,belluno_dolomiti --cells 300
+```
 
 ## 9. Fine-tuning progressivo completo della campagna
 
@@ -190,7 +216,7 @@ $DataRoot49 = 'E:\BioMAP_49pixels'
 
 ## 11. Ripresa e importazione da SSD
 
-`prepare` è riprendibile con lo stesso comando. Gli NPZ per giorno e cella hanno checksum; una cache corrotta blocca il comando, non viene accettata come valida.
+`prepare` è riprendibile con lo stesso comando. Le serie delle celle hanno checksum e i checkpoint giornalieri sono controllati alla rilettura; una cache corrotta blocca il comando, non viene accettata come valida.
 
 Per cache prodotte da **questo repository**, indicando la loro radice originaria:
 

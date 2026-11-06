@@ -1,5 +1,7 @@
 # Preparazione MSA: diagnosi, ottimizzazione e ripresa su Windows
 
+> **Aggiornamento del 6 novembre 2026.** Questa guida descrive la prima versione del motore ottimizzato. Il profilo usa ora un lotto per area, nessuna cache di blocchi e checkpoint unici per giorno: i numeri su lotti da 16 celle, quattro worker e cache da 8 GiB nelle sezioni di diagnosi e strategia sono storici. Comandi attuali nel [README](README.md#preparazione-parallela-per-aree), dettagli nel [report delle modifiche](REPORT_ACCELERAZIONE_PREPARE_MSA.md).
+
 Il profilo `configs/msa_v1_liguria.yaml` usa ora automaticamente il motore `optimized`. Non cambiano il comando `prepare`, le dipendenze o il formato degli input TESSERA. La GPU rimane normalmente inattiva durante l'acquisizione: viene usata nel successivo `run` per gli embedding.
 
 ## Diagnosi del percorso precedente
@@ -106,35 +108,23 @@ Tempi principali: `stac_query`, `catalog_cache_load`, `sas_token`, `remote_open`
 
 ### 4. Regolare l'I/O senza cambiare l'esperimento
 
-Iniziare con i valori predefiniti. Se il server restituisce molti errori o la rete universitaria è limitata, riprendere con due worker:
+Iniziare con i valori predefiniti e con `--parallel-aois 4`. Se il server restituisce molti errori o la rete è limitata, ridurre i processi o i worker:
 
 ```powershell
-& $Python scripts\probe_msa.py prepare --config $Cfg --data-root $DataRoot --set acquisition.io_workers=2
+& $Python scripts\probe_msa.py prepare --config $Cfg --data-root $DataRoot --parallel-aois 2 --set acquisition.io_workers=4
 ```
 
-Se rete e disco sono stabili, provare un lotto più grande mantenendo quattro worker:
+Confrontare `blocchi/s` su **nuove** celle, senza dedurre vantaggi dai giorni già salvati. Questi parametri non modificano il campionamento. I limiti ammessi sono 16 `io_workers` e 16 `day_workers`; aumentarli non garantisce prestazioni migliori.
 
-```powershell
-& $Python scripts\probe_msa.py prepare --config $Cfg --data-root $DataRoot --set acquisition.batch_cells=32
-```
-
-Confrontare velocità su **nuove** celle e contatori, senza dedurre vantaggi da hit preesistenti. Questi parametri non modificano il campionamento. La concorrenza massima ammessa è otto worker; aumentarla non garantisce prestazioni migliori.
-
-Per ridurre lo spazio destinato ai soli blocchi riutilizzabili:
-
-```powershell
-& $Python scripts\probe_msa.py prepare --config $Cfg --data-root $DataRoot --set acquisition.block_cache_gib=2
-```
-
-La cache LRU si ridimensiona senza cancellare serie complete. Non cambiare anno, punti, osservazioni o target per accelerare.
+`block_cache_gib: 0` non cancella una cache esistente: `observation_cache\native_v1` resta su disco inutilizzata e occupa circa 8 GiB, conteggiati nel limite di `storage.max_gib`. Con `--aoi` e `--parallel-aois` la cache deve restare a zero. Non cambiare anno, punti, osservazioni o target per accelerare.
 
 ### 5. Errori di rete, interruzione e ripresa
 
-I raster hanno timeout di connessione **10 s** e di operazione HTTP **30 s** e al massimo **tre tentativi** con backoff e rinnovo SAS. Il retry interno GDAL è disattivato per evitare moltiplicazioni dei tentativi. STAC e token usano al massimo due retry aggiuntivi, anche sulle POST di ricerca, per 429/500/502/503/504; viene rispettato `Retry-After`. Non è un limite di trenta secondi per un'intera banda: questa può richiedere più operazioni HTTP. I timeout sono configurabili nelle chiavi `acquisition.*` del YAML.
+I raster hanno timeout di connessione **10 s** e di operazione HTTP **30 s** e al massimo **otto tentativi** con attesa crescente e casuale fino a 60 s e rinnovo SAS; i blocchi già ottenuti non si rileggono. Il retry interno GDAL è disattivato per evitare moltiplicazioni dei tentativi. STAC e token usano al massimo due retry aggiuntivi, anche sulle POST di ricerca, per 429/500/502/503/504; viene rispettato `Retry-After`. Non è un limite di trenta secondi per un'intera banda: questa può richiedere più operazioni HTTP. I timeout sono configurabili nelle chiavi `acquisition.*` del YAML.
 
-Con Ctrl+C attendere la chiusura dei worker: le operazioni già iniziate possono dover terminare o raggiungere il timeout. Il comando successivo è sempre lo stesso `prepare`. I giorni acquisiti sono riutilizzati; NPZ e manifest vengono pubblicati atomicamente con transazioni recuperabili e checksum. Le serie del precedente motore restano compatibili. Un processo terminato forzatamente perde soltanto lavoro non ancora pubblicato: i blocchi salvati possono essere riusati.
+Con Ctrl+C attendere la chiusura dei worker: le operazioni già iniziate possono dover terminare o raggiungere il timeout. Il comando successivo è sempre lo stesso `prepare`. I giorni acquisiti restano in `batch_checkpoints` e vengono riutilizzati; le serie e i manifest vengono pubblicati atomicamente con transazioni recuperabili e checksum. Le serie del precedente motore restano compatibili. Un processo terminato forzatamente perde soltanto i giorni in corso.
 
-Se una vecchia cache risulta corrotta o priva di manifest, il comando si ferma indicando il file: non la considera valida e non sovrascrive silenziosamente i dati. Un secondo prepare nello stesso namespace viene rifiutato dal blocco OS, che viene rilasciato anche in caso di terminazione del processo. La presenza del piccolo `prepare.lock` sul disco non indica da sola un processo attivo.
+Se una vecchia cache risulta corrotta o priva di manifest, il comando si ferma indicando il file: non la considera valida e non sovrascrive silenziosamente i dati. Il blocco OS rifiuta due processi sulla stessa area e un `prepare` completo mentre è attiva una qualsiasi area, e viene rilasciato anche in caso di terminazione del processo. La presenza dei piccoli file `prepare*.lock` sul disco non indica da sola un processo attivo.
 
 Le firme SAS vengono rimosse dai messaggi rasterio; non attivare logging verbose HTTP/GDAL e non pubblicare chiavi o URL firmati.
 

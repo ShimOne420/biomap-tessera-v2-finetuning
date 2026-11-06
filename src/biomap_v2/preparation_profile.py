@@ -1,9 +1,38 @@
-# Scopo: tempi, contatori I/O, avanzamento/ETA e budget incrementale del preprocessing.
-# Fasi: snapshot risorse -> misura per stadio/asset -> heartbeat -> report finale/interruzione.
-# Input: configurazione e numero celle; output: diagnostics/TIMESTAMP_prepare/{profile,progress}.json e assets.csv.
-# Parametri: acquisition.progress_seconds, batch_cells, io_workers; esempio: probe_msa.py prepare --config configs/msa_v1_liguria.yaml.
-# Risorse: un thread leggero per heartbeat; nessuna GPU, nessun URL firmato nei report.
-# Ripresa: report per invocazione, budget ricostruito dal disco una sola volta e poi aggiornato sulle scritture.
+# SCOPO
+#   Misura il lavoro di prepare (tempi, contatori, avanzamento) e controlla che le scritture restino
+#   entro il budget disco. Non influisce sui valori delle serie.
+#
+# COME VIENE RICHIAMATO
+#   Non si esegue da solo. data.prepare crea PreparationProfile(cfg, celle, etichetta_area);
+#   preparation.acquire_optimized crea SpaceGuard(cfg, profilo) e lo passa a chi scrive su disco.
+#
+# LOGICA DI PreparationProfile
+#   1. Crea diagnostics/<timestamp>[_<area>]_prepare e salva la configurazione effettiva.
+#   2. span() somma i tempi per stadio; count() somma i contatori; cell() conta le celle concluse.
+#   3. batch_days() registra i giorni completati nel lotto: con un lotto per area le celle si salvano solo
+#      alla fine, quindi è questa la misura di avanzamento che legge parallel_prepare.
+#   4. Un thread scrive progress.json e profile.json ogni progress_seconds e stampa una riga di stato.
+#   5. finish() registra lo stato finale e scrive assets.csv. Dopo un'uccisione forzata lo stato resta
+#      "running" e assets.csv manca.
+#
+# LOGICA DI SpaceGuard
+#   1. All'avvio somma una volta i file della data-root; poi aggiorna il totale a ogni scrittura.
+#   2. check() ferma il comando se si supera storage.max_gib o se lo spazio libero scende sotto reserve_gib.
+#   3. storage.max_new_gib, impostato da --max-new-gib, assegna una quota fissa a ogni processo parallelo:
+#      i processi non si vedono tra loro, ma la somma delle quote resta entro il limite globale.
+#   4. json() e npz() scrivono su un file .partial e poi lo sostituiscono in modo atomico.
+#
+# INPUT E OUTPUT
+#   Input: configurazione e numero di celle. Output: progress.json, profile.json, config.json, assets.csv.
+#
+# PARAMETRI
+#   acquisition.progress_seconds, storage.max_gib, storage.reserve_gib, storage.max_new_gib.
+#
+# RISORSE
+#   Un thread leggero; nessuna GPU; nessun URL firmato nei report.
+#
+# RIPRESA
+#   Ogni esecuzione ha la propria cartella di report e ricostruisce il totale dal disco.
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -19,12 +48,14 @@ from .common import root, save_json
 
 
 class PreparationProfile:
-    def __init__(self,cfg,total):
+    def __init__(self,cfg,total,label=None):
         self.cfg=cfg;self.total=total;self.started=time.perf_counter();self.work_started=None
         self.completed=0;self.cached=0;self.new=0;self.excluded=0;self.phase='initializing';self.status='running'
+        self.days_done=0;self.days_total=0;self.days_cells=0
         self.timings=defaultdict(lambda:{'seconds':0.,'calls':0});self.counters=defaultdict(int);self.assets={}
         self.lock=threading.RLock();self.writer=threading.RLock();self.stop=threading.Event()
-        self.directory=root(cfg)/'diagnostics'/(datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')+'_prepare')
+        suffix=f'_{label}_prepare' if label else '_prepare'
+        self.directory=root(cfg)/'diagnostics'/(datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')+suffix)
         self.directory.mkdir(parents=True,exist_ok=True)
         save_json(self.directory/'config.json',cfg)
         self.interval=cfg.get('acquisition',{}).get('progress_seconds',10)
@@ -57,6 +88,9 @@ class PreparationProfile:
 
     def start_work(self):self.work_started=time.perf_counter()
 
+    def batch_days(self,done,total,cells):
+        with self.lock:self.days_done=done;self.days_total=total;self.days_cells=cells
+
     def cell(self,cached=False,excluded=False):
         with self.lock:
             self.completed+=1;self.cached+=int(cached);self.new+=int(not cached);self.excluded+=int(excluded)
@@ -71,6 +105,7 @@ class PreparationProfile:
                 'cached_cells':self.cached,'new_cells':self.new,'excluded_cells':self.excluded,
                 'elapsed_seconds':elapsed,'new_cells_per_hour':rate*3600 if rate else None,
                 'eta_seconds':remaining/rate if rate else (0 if remaining==0 else None),
+                'batch_days_done':self.days_done,'batch_days_total':self.days_total,'batch_cells':self.days_cells,
                 'timings':{key:dict(value) for key,value in self.timings.items()},'counters':dict(self.counters),
                 'timing_note':'worker seconds are sums and can exceed wall time; decoded bytes are not HTTP wire bytes',
                 'report_directory':str(self.directory)}
@@ -111,9 +146,12 @@ class SpaceGuard:
                 # The heartbeat atomically replaces its temporary files during a long inventory.
                 try:
                     if path.is_file():self.used+=path.stat().st_size
-                except FileNotFoundError:continue
+                except OSError:continue
         # Reserve room for profiler + SQLite/WAL metadata, which do not call these writers.
         self.used+=32*1024**2
+        # Parallel area workers each receive a fixed share, so their sum stays within the global cap.
+        share=cfg['storage'].get('max_new_gib')
+        if share is not None:self.cap=min(self.cap,self.used+share*1024**3)
         self.check(0)
 
     def check(self,n):

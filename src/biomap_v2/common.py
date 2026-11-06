@@ -1,9 +1,32 @@
-# Scopo: configurazione, provenienza, controlli risorse e metriche comuni alle tre CLI.
-# Fasi: carica YAML/override, valida split, crea run e salva risultati verificabili.
-# Input: configurazione, CSV celle, predizioni; output: JSON/CSV/PNG e report Markdown.
-# Parametri: --config, --data-root, --set sezione.chiave=valore; vedere README per esempi.
-# Risorse: CPU; il doctor verifica separatamente CUDA con forward e backward reali.
-# Ripresa: scritture JSON atomiche e checksum; non cancella dati originali o run esistenti.
+# SCOPO
+#   Funzioni comuni alle tre CLI: configurazione, percorsi, checksum, budget disco, controllo GPU, run e metriche.
+#
+# COME VIENE RICHIAMATO
+#   Non si esegue da solo: lo importano cli.py e gli altri moduli di biomap_v2. config() viene chiamata
+#   all'avvio di ogni comando, per esempio python scripts/probe_msa.py prepare --config ... --data-root ...
+#
+# LOGICA PRINCIPALE
+#   1. config() carica il YAML, aggiunge i valori predefiniti di acquisition e applica gli override --set.
+#   2. Valida i parametri: valori fuori dai limiti fermano il comando prima di toccare i dati.
+#   3. root() ricava la cartella di lavoro <data_root>/<dataset_namespace>.
+#   4. digest() e save_json() forniscono checksum SHA-256 e scrittura JSON atomica.
+#   5. Le altre funzioni di questo file gestiscono celle e split, doctor CUDA, cartelle di run e metriche.
+#
+# LIMITI DI acquisition, CONTROLLATI DA config()
+#   batch_cells 1-16384, io_workers 1-16, day_workers 1-16, memory_cache_mib 0-2048, read_attempts 1-10,
+#   block_cache_gib 0-1024. day_workers vale 1 se il YAML non lo indica.
+#
+# INPUT E OUTPUT
+#   Input: configurazione, CSV celle, predizioni. Output: JSON, CSV, PNG e report Markdown.
+#
+# PARAMETRI
+#   --config, --data-root, --set sezione.chiave=valore; esempi nel README.
+#
+# RISORSE
+#   CPU; il doctor verifica separatamente CUDA con forward e backward reali.
+#
+# RIPRESA
+#   Scritture JSON atomiche e checksum; non cancella dati originali o run esistenti.
 from pathlib import Path
 from datetime import datetime, timezone
 import hashlib
@@ -42,7 +65,7 @@ def config(indicator, args):
     path = Path(args.config) if args.config else ROOT / 'configs' / f'{indicator}.yaml'
     cfg = yaml.safe_load(path.read_text(encoding='utf-8'))
     acquisition=cfg.setdefault('acquisition',{})
-    defaults={'engine':'legacy','shared_catalogs':False,'batch_cells':16,'io_workers':4,
+    defaults={'engine':'legacy','shared_catalogs':False,'batch_cells':16,'io_workers':4,'day_workers':1,
         'block_cache_gib':8,'memory_cache_mib':256,'progress_seconds':10,
         'read_attempts':3,'connect_timeout_seconds':10,'read_timeout_seconds':30,'http_retries':2}
     for key,value in defaults.items():acquisition.setdefault(key,value)
@@ -79,8 +102,8 @@ def config(indicator, args):
     if cfg['year'] != 2020 and cfg['target']['mode'] == 'official':
         raise ValueError('I target ufficiali configurati sono del 2020; per altri anni usare un raster custom documentato')
     if acquisition['engine'] not in {'legacy','optimized'}:raise ValueError('acquisition.engine: legacy oppure optimized')
-    limits={'batch_cells':(1,128),'io_workers':(1,8),'memory_cache_mib':(0,2048),
-        'progress_seconds':(1,120),'read_attempts':(1,5),'connect_timeout_seconds':(1,120),
+    limits={'batch_cells':(1,16384),'io_workers':(1,16),'day_workers':(1,16),'memory_cache_mib':(0,2048),
+        'progress_seconds':(1,120),'read_attempts':(1,10),'connect_timeout_seconds':(1,120),
         'read_timeout_seconds':(1,120),'http_retries':(0,4)}
     for key,(low,high) in limits.items():
         if not isinstance(acquisition[key],int) or not low<=acquisition[key]<=high:

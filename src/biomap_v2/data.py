@@ -1,10 +1,39 @@
-# Scopo: acquisire target ufficiali e serie annuali Sentinel nelle celle degli split.
-# Fasi: target -> punti stratificati -> catalogo STAC -> letture COG -> cache per cella.
-# Input: CSV geometrie, YAML, eventuale raster/cache SSD; output: NPZ, JSON e celle eleggibili.
-# Parametri: prepare --limit N, --target-raster PATH, --import-cache PATH, --set sampling.*.
-# Esempio: python scripts/probe_msa.py prepare --data-root E:\BioMAP --limit 12.
-# Risorse: Internet e rasterio; cache bounded, disco con riserva; S1 può richiedere PC_SDK_SUBSCRIPTION_KEY.
-# Ripresa: cataloghi/giorni/celle verificati con hash; nessun ricampionamento dopo errori rete.
+# SCOPO
+#   Punto d'ingresso di prepare: acquisisce i target e le serie annuali Sentinel delle celle, poi scrive
+#   l'elenco delle celle eleggibili (cells.csv). Contiene anche il percorso originale "legacy".
+#
+# COME VIENE RICHIAMATO
+#   cli.py chiama prepare(cfg, args) per l'azione prepare:
+#     python scripts/probe_msa.py prepare --config configs/msa_v1_liguria.yaml --data-root ..\data
+#     python scripts/probe_msa.py prepare --data-root E:\BioMAP --limit 12
+#     python scripts/probe_msa.py prepare --config ... --data-root ... --aoi belluno_dolomiti
+#   prepared() viene chiamata dai comandi successivi (run, export-embeddings) per rileggere cells.csv.
+#
+# LOGICA DI prepare, IN ORDINE
+#   1. Carica le celle e applica --aoi oppure --limit; i due filtri non sono combinabili.
+#   2. Prende i blocchi OS: un'area blocca solo sé stessa; un prepare completo blocca tutte le aree.
+#   3. Crea il profilo e chiama _prepare_run.
+#   4. _prepare_run acquisisce e valida i target. Con --aoi legge soltanto il target già presente, per
+#      evitare scritture concorrenti da parte di più processi.
+#   5. Con engine=optimized delega a preparation.acquire_optimized; con legacy usa acquire(), cella per cella.
+#   6. Con --aoi termina qui e restituisce None: cells.csv lo scrive solo il prepare completo.
+#   7. Il prepare completo controlla i conteggi attesi e scrive cells.csv e cells.json nell'ordine originale.
+#
+# ALTRE FUNZIONI
+#   sample_points: i punti del quadrato di ogni cella. query: catalogo STAC congelato su disco per area.
+#   Reader: token SAS e lettura dei raster. power_to_storage: conversione Sentinel-1 in int16.
+#
+# INPUT E OUTPUT
+#   Input: CSV celle, YAML, eventuale raster o cache esterna. Output: NPZ, JSON e celle eleggibili.
+#
+# PARAMETRI
+#   --limit N, --aoi AREA, --target-raster PATH, --import-cache PATH, --set sampling.*, --set acquisition.*.
+#
+# RISORSE
+#   Internet e rasterio; disco con riserva; S1 può richiedere PC_SDK_SUBSCRIPTION_KEY.
+#
+# RIPRESA
+#   Cataloghi e celle verificati con hash; nessun ricampionamento dopo errori di rete.
 from pathlib import Path
 from datetime import datetime
 import io
@@ -271,7 +300,15 @@ def cell_directory(cfg,cell_id):
 
 
 def prepare(cfg,args):
-    frame=cells(cfg);all_cells=frame.copy()
+    frame=cells(cfg);all_cells=frame.copy();aoi=getattr(args,'aoi',None)
+    areas=sorted(set(frame.aoi_id))
+    if aoi:
+        if aoi not in areas:raise ValueError(f'Area sconosciuta: {aoi}')
+        if args.limit:raise ValueError('--aoi e --limit non sono combinabili')
+        if cfg['acquisition']['engine']!='optimized':raise ValueError('--aoi richiede acquisition.engine=optimized')
+        # A shared block index would be trimmed by several processes without seeing each other's writes.
+        if cfg['acquisition']['block_cache_gib']!=0:raise ValueError('--aoi richiede acquisition.block_cache_gib=0')
+        frame=frame[frame.aoi_id==aoi].reset_index(drop=True)
     # A limit samples within every partition, ensuring smoke runs still have train/val/test.
     if args.limit:
         if args.limit<3:raise ValueError('--limit minimo 3')
@@ -285,10 +322,11 @@ def prepare(cfg,args):
             pieces.append(frame[frame.partition=='test'].head(ntest))
             frame=pd.concat(pieces,ignore_index=True)
         else:frame=pd.concat([frame[frame.partition==p].head(n) for p,n in sizes.items()],ignore_index=True)
-    from .preparation import preparation_lock
+    from .preparation import preparation_locks
     from .preparation_profile import PreparationProfile
-    with preparation_lock(cfg):
-        profile=PreparationProfile(cfg,len(frame))
+    locks=[f'prepare_{aoi}'] if aoi else ['prepare',*(f'prepare_{name}' for name in areas)]
+    with preparation_locks(cfg,locks):
+        profile=PreparationProfile(cfg,len(frame),aoi)
         try:
             result=_prepare_run(cfg,args,frame,all_cells,profile)
         except KeyboardInterrupt:
@@ -302,7 +340,13 @@ def prepare(cfg,args):
 def _prepare_run(cfg,args,frame,all_cells,profile):
     base=root(cfg);base.mkdir(parents=True,exist_ok=True)
     profile.stage('target acquisition and validation')
-    with profile.span('target_acquisition'):path=target_raster(cfg,all_cells,args.target_raster)
+    area=getattr(args,'aoi',None)
+    if area:
+        # The coordinator already acquired the target: workers only read it, avoiding concurrent pointer writes.
+        from .target_data import locate_target
+        with profile.span('target_acquisition'):path=locate_target(cfg,args.target_raster)
+    else:
+        with profile.span('target_acquisition'):path=target_raster(cfg,all_cells,args.target_raster)
     with profile.span('target_validation'):frame=targets(cfg,frame,path)
     selected=[];excluded=[]
     optimized=cfg.get('acquisition',{}).get('engine')=='optimized'
@@ -310,6 +354,8 @@ def _prepare_run(cfg,args,frame,all_cells,profile):
     if optimized:
         from .preparation import acquire_optimized
         results=acquire_optimized(cfg,frame,args,profile)
+        # One area cannot write the eligible-cells manifest: the final full prepare validates and writes it.
+        if area:return None
     else:profile.start_work()
     for index,cell in enumerate(frame.itertuples()):
         directory=cell_directory(cfg,cell.cell_id);directory.mkdir(parents=True,exist_ok=True)

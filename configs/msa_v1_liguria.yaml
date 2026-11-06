@@ -54,12 +54,13 @@ training:
   clip_grad: 1.0
 acquisition:
   engine: optimized # legacy conserva il percorso originale per confronti di equivalenza
-  batch_cells: 16 # soltanto raggruppamento I/O; celle e 25 punti rimangono identici
-  io_workers: 4 # parallelo tra bande, non nel mosaicking deterministico
-  block_cache_gib: 8 # LRU di soli blocchi temporanei; nessuna serie completata eliminata
-  memory_cache_mib: 256
+  batch_cells: 8192 # un'area intera per lotto: ogni blocco si legge una volta; solo raggruppamento I/O, celle e 25 punti identici
+  io_workers: 8 # parallelo tra bande, non nel mosaicking deterministico
+  day_workers: 4 # giorni indipendenti in parallelo; l'ordine delle scene dentro un giorno non cambia
+  block_cache_gib: 0 # con lotti d'area i blocchi non si rileggono; una cache esistente resta intatta e inutilizzata
+  memory_cache_mib: 0
   progress_seconds: 10
-  read_attempts: 3
+  read_attempts: 8
   connect_timeout_seconds: 10
   read_timeout_seconds: 30
   http_retries: 2

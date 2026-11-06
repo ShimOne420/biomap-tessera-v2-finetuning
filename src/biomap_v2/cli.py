@@ -1,10 +1,36 @@
-# Scopo: unica interfaccia condivisa dai tre script principali, senza codice duplicato.
-# Fasi: parsing, YAML/override, controllo GPU, dispatch verso prepare/probe/train/evaluate.
-# Input: argomenti CLI; output: dati e run nella data-root scelta dall'utente.
-# Parametri: --help elenca azioni e opzioni; --set sezione.chiave=valore modifica YAML.
-# Esempio: probe_bii.py run --data-root E:\BioMAP --set probing.ridge_alpha=10.
-# Risorse: import pesanti soltanto dopo parsing; --help funziona senza GPU.
-# Ripresa: --resume last.pt per training, prepare riprende cache; errori interrompono il comando.
+# SCOPO
+#   Unica interfaccia a riga di comando condivisa dai tre script principali, senza codice duplicato.
+#
+# COME VIENE RICHIAMATO
+#   Non si esegue da solo: scripts/probe_msa.py, probe_bii.py e lo script di fine-tuning chiamano main().
+#     python scripts/probe_msa.py --help
+#     python scripts/probe_msa.py prepare --config configs/msa_v1_liguria.yaml --data-root ..\data
+#     python scripts/probe_msa.py prepare --config ... --data-root ... --parallel-aois 15
+#     python scripts/probe_bii.py run --data-root E:\BioMAP --set probing.ridge_alpha=10
+#
+# LOGICA, IN ORDINE
+#   1. Legge gli argomenti, poi carica YAML e override con common.config().
+#   2. Esegue il controllo GPU solo nelle azioni che la usano.
+#   3. Passa all'azione richiesta: doctor, download-weights, download-targets, diagnose-targets, prepare,
+#      run, evaluate oppure export-embeddings.
+#   4. Per prepare: con --parallel-aois chiama parallel_prepare.run_parallel, altrimenti data.prepare.
+#
+# OPZIONI DI prepare
+#   --limit N: prova su N celle totali.
+#   --aoi AREA: una sola area, senza scrivere cells.csv.
+#   --max-new-gib X: con --aoi, spazio massimo aggiuntivo del processo.
+#   --parallel-aois N: un processo per area, al massimo N insieme, poi validazione finale.
+#   --aois a,b: con --parallel-aois, solo queste aree, senza validazione finale.
+#   --stop-after-minutes M: con --parallel-aois, si ferma dopo M minuti conservando i checkpoint.
+#
+# INPUT E OUTPUT
+#   Input: argomenti CLI. Output: dati e run nella data-root scelta dall'utente.
+#
+# RISORSE
+#   Import pesanti soltanto dopo il parsing; --help funziona senza GPU.
+#
+# RIPRESA
+#   --resume last.pt per il training; prepare riprende da solo; un errore interrompe il comando.
 import argparse
 from .common import config, doctor
 
@@ -19,6 +45,11 @@ def main(indicator=None,finetune=False):
     parser.add_argument('--device',help='cuda, cuda:0 oppure cpu per test')
     parser.add_argument('--checkpoint',help='Checkpoint ufficiale o best.pt adattato; caricare solo file fidati')
     parser.add_argument('--limit',type=int,help='prepare: limite celle, distribuito fra tutti gli split')
+    parser.add_argument('--aoi',help='prepare: elabora una sola area, senza scrivere cells.csv')
+    parser.add_argument('--parallel-aois',type=int,metavar='N',help='prepare: un processo per area, massimo N insieme; poi validazione finale')
+    parser.add_argument('--aois',help='prepare --parallel-aois: elenco di aree separate da virgole, senza validazione finale')
+    parser.add_argument('--stop-after-minutes',type=float,help='prepare --parallel-aois: ferma i processi dopo questo tempo, conservando i checkpoint')
+    parser.add_argument('--max-new-gib',type=float,help='prepare --aoi: spazio massimo aggiuntivo per questo processo')
     parser.add_argument('--smoke',action='store_true',help='run/evaluate: usa cells_smoke.csv; risultati tecnici, non benchmark')
     parser.add_argument('--target-raster',help='Raster locale; MSA unitless, BII nelle unità dichiarate nel YAML')
     parser.add_argument('--import-cache',help='Radice di una cache esportata da questo progetto, con manifest')
@@ -47,6 +78,14 @@ def main(indicator=None,finetune=False):
         from .encoder import weights
         print(weights(cfg));return
     if args.action=='prepare':
+        if args.parallel_aois:
+            if args.aoi or args.limit:parser.error('--parallel-aois non si combina con --aoi o --limit')
+            from .parallel_prepare import run_parallel
+            return run_parallel(cfg,args)
+        if args.aois or args.stop_after_minutes:parser.error('--aois e --stop-after-minutes richiedono --parallel-aois')
+        if args.max_new_gib is not None:
+            if not args.aoi:parser.error('--max-new-gib richiede --aoi')
+            cfg['storage']['max_new_gib']=args.max_new_gib
         from .data import prepare
         print(prepare(cfg,args));return
     if args.action=='run':

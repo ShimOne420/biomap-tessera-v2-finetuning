@@ -1,9 +1,31 @@
-# Scopo: provare parità numerica e riduzione delle aperture raster senza rete o dati inventati nel benchmark reale.
-# Fasi: GeoTIFF sintetici -> riferimento seriale -> lotti/cache/thread -> confronto array e ripresa/interruzione.
-# Input: fixture note con nuvole, NoData, valori estremi e orbite; output: report/test temporanei.
-# Parametri: python -m pytest tests/test_preparation_performance.py; cache/worker variati nei test.
-# Risorse: CPU e disco temporaneo; la riduzione di richieste è misurata, non è una promessa di throughput Windows.
-# Ripresa: test delle transazioni pending, cache vecchie, cache nativa calda e dati validi non riscritti.
+# SCOPO
+#   Prova che il motore di prepare, con qualsiasi combinazione di lotti, thread e cache, produce gli stessi
+#   array del percorso originale, e che interruzioni e riprese non perdono né alterano dati.
+#
+# COME VIENE RICHIAMATO
+#   Dalla cartella del progetto, senza rete:
+#     python -m pytest tests/test_preparation_performance.py
+#
+# LOGICA, IN ORDINE
+#   1. La fixture observations crea GeoTIFF sintetici con nuvole, NoData, valori estremi e due orbite.
+#   2. I test eseguono il percorso legacy come riferimento e il motore ottimizzato con parametri diversi.
+#   3. Confrontano array, dtype, manifest delle scene e frazioni valide con uguaglianza esatta.
+#
+# COSA COPRE
+#   Equivalenza: lotti da 1 a 8192 celle, fino a 16 worker per bande e per giorni, con e senza cache.
+#   Ripresa: interruzione durante i giorni e durante il salvataggio, intermedi per cella del vecchio formato.
+#   Esclusioni: una cella esclusa resta definitiva e non si riscarica.
+#   Processi per area: --aoi non scrive cells.csv, blocchi reciproci, quota disco, cache esistente intatta.
+#   Rete: un nuovo tentativo non rilegge i blocchi già ottenuti; token SAS rinnovato; URL firmati oscurati.
+#
+# INPUT E OUTPUT
+#   Input: soli dati sintetici. Output: file temporanei di pytest.
+#
+# RISORSE
+#   CPU e disco temporaneo. Le velocità di questi test non misurano le prestazioni di rete reali.
+#
+# LIMITE
+#   Non sostituisce la prova su dati reali: per quella usare scripts/verify_prepare_equivalence.py.
 import argparse
 import copy
 import json
@@ -189,23 +211,147 @@ def test_pending_transaction_recovered_and_process_lock(tmp_path,monkeypatch):
 def test_interrupted_batch_resumes_verified_days(tmp_path,observations,monkeypatch):
     frame,csv,args,items,calls=observations
     cfg=make_cfg(tmp_path);cfg['cells']=str(csv)
+    reference=make_cfg(tmp_path/'reference');reference['cells']=str(csv);data.prepare(reference,args)
     original=BatchAcquirer.read_bands
     def interrupt_second_date(self,item,bands,points):
         if '2020-12-31' in item['id']:raise KeyboardInterrupt()
         return original(self,item,bands,points)
     monkeypatch.setattr(BatchAcquirer,'read_bands',interrupt_second_date)
     with pytest.raises(KeyboardInterrupt):data.prepare(cfg,args)
-    day_files=list((root(cfg)/'series').glob('*/s2_2020-06-01.npz'))
-    assert len(day_files)==8
-    hashes={str(path):digest(path) for path in day_files}
+    # One checkpoint per day and batch, and no per-cell intermediates.
+    assert len(list((root(cfg)/'batch_checkpoints').glob('*/*/s2_2020-06-01.npz')))==1
+    assert not list((root(cfg)/'series').glob('*/s2_*'))
     seen=[]
     def resumed(self,item,bands,points):seen.append(item['id']);return original(self,item,bands,points)
     monkeypatch.setattr(BatchAcquirer,'read_bands',resumed)
     data.prepare(cfg,args)
     assert not any('2020-06-01' in scene and scene.startswith('s2_') for scene in seen)
-    assert len(prepared_arrays(cfg,frame))==7
+    actual=prepared_arrays(cfg,frame);expected=prepared_arrays(reference,frame)
+    assert len(actual)==7
+    for cell in expected:
+        for key in expected[cell]:np.testing.assert_array_equal(actual[cell][key],expected[cell][key])
+    assert not list((root(cfg)/'batch_checkpoints').rglob('*.npz'))
     profiles=[json.loads(path.read_text()) for path in (root(cfg)/'diagnostics').glob('*_prepare/profile.json')]
     assert {p['status'] for p in profiles}=={'interrupted','complete'}
+
+
+def test_interruption_during_cell_saving_resumes_without_reads(tmp_path,observations,monkeypatch):
+    frame,csv,args,items,calls=observations
+    cfg=make_cfg(tmp_path);cfg['cells']=str(csv)
+    reference=make_cfg(tmp_path/'reference');reference['cells']=str(csv);data.prepare(reference,args)
+    original=BatchAcquirer.finish_cell;saved=[]
+    def interrupt_after_three(self,cell,*rest):
+        if len(saved)==3:raise KeyboardInterrupt()
+        saved.append(cell.cell_id);return original(self,cell,*rest)
+    monkeypatch.setattr(BatchAcquirer,'finish_cell',interrupt_after_three)
+    with pytest.raises(KeyboardInterrupt):data.prepare(cfg,args)
+    monkeypatch.setattr(BatchAcquirer,'finish_cell',original)
+    monkeypatch.setattr(BatchAcquirer,'read_bands',lambda *a:pytest.fail('Days are checkpointed: no raster read on resume'))
+    data.prepare(cfg,args)
+    actual=prepared_arrays(cfg,frame);expected=prepared_arrays(reference,frame)
+    assert actual.keys()==expected.keys()
+    for cell in expected:
+        for key in expected[cell]:np.testing.assert_array_equal(actual[cell][key],expected[cell][key])
+    assert not list((root(cfg)/'batch_checkpoints').rglob('*.npz'))
+
+
+def test_partial_per_cell_day_files_are_reused_and_removed(tmp_path,observations,monkeypatch):
+    frame,csv,args,items,calls=observations
+    legacy=make_cfg(tmp_path/'legacy','legacy');legacy['cells']=str(csv);data.prepare(legacy,args)
+    expected=prepared_arrays(legacy,frame)
+    # Rebuild the state a run of the earlier format leaves behind: one finished day for an unfinished cell.
+    cfg=make_cfg(tmp_path/'resume');cfg['cells']=str(csv)
+    directory=data.cell_directory(cfg,'0');directory.mkdir(parents=True)
+    donor=make_cfg(tmp_path/'donor');donor['cells']=str(csv);original=BatchAcquirer.read_bands
+    def interrupt(self,item,bands,points):
+        if '2020-12-31' in item['id']:raise KeyboardInterrupt()
+        return original(self,item,bands,points)
+    monkeypatch.setattr(BatchAcquirer,'read_bands',interrupt)
+    with pytest.raises(KeyboardInterrupt):data.prepare(donor,args)
+    monkeypatch.setattr(BatchAcquirer,'read_bands',original)
+    checkpoint=next((root(donor)/'batch_checkpoints').glob('*/*/s2_2020-06-01.npz'))
+    position=json.loads((checkpoint.parent/'manifest.json').read_text())['cell_ids'].index('0')
+    with np.load(checkpoint,allow_pickle=False) as stored:bands=stored['bands'][position];valid=stored['valid'][position]
+    day_ids=[item['id'] for item in items['sentinel-2-l2a'] if item['properties']['datetime'].startswith('2020-06-01')]
+    np.savez_compressed(directory/'s2_2020-06-01.npz',bands=bands,valid=valid)
+    (directory/'s2_2020-06-01.json').write_text(json.dumps({'sha256':digest(directory/'s2_2020-06-01.npz'),'scene_ids':day_ids}),encoding='utf-8')
+    data.prepare(cfg,args)
+    profile=json.loads(next((root(cfg)/'diagnostics').glob('*_prepare/profile.json')).read_text())
+    assert profile['counters']['day_cache_hits']==1
+    actual=prepared_arrays(cfg,frame)
+    for cell in expected:
+        for key in expected[cell]:np.testing.assert_array_equal(actual[cell][key],expected[cell][key])
+    assert not list(directory.glob('s2_*'))
+
+
+def test_excluded_cell_is_final_and_not_downloaded_again(tmp_path,observations,monkeypatch):
+    frame,csv,args,items,calls=observations
+    cfg=make_cfg(tmp_path);cfg['cells']=str(csv);first=data.prepare(cfg,args)
+    assert json.loads((data.cell_directory(cfg,'7')/'excluded.json').read_text())['protocol']==data.PROTOCOL
+    monkeypatch.setattr(BatchAcquirer,'read_bands',lambda *a:pytest.fail('Excluded cell downloaded again'))
+    second=data.prepare(cfg,args)
+    pd.testing.assert_frame_equal(pd.read_csv(first),pd.read_csv(second))
+    newest=sorted((root(cfg)/'diagnostics').glob('*_prepare/profile.json'))[-1]
+    assert json.loads(newest.read_text())['excluded_cells']==1
+
+
+def test_area_worker_writes_cells_but_not_final_manifest(tmp_path,observations):
+    frame,csv,args,items,calls=observations
+    # A second area proves that one worker leaves the other area's cells alone.
+    multi=frame.copy();multi.loc[multi.index>=4,'aoi_id']='other_aoi';multi.to_csv(csv,index=False)
+    cfg=make_cfg(tmp_path);cfg['cells']=str(csv);cfg['acquisition']['block_cache_gib']=0;cfg['acquisition']['memory_cache_mib']=0
+    target=root(cfg)/'targets';target.mkdir(parents=True)
+    worker=argparse.Namespace(**vars(args));worker.aoi='fixture_aoi'
+    assert data.prepare(cfg,worker) is None
+    assert sorted(prepared_arrays(cfg,frame))==['0','1','2','3']
+    assert not (root(cfg)/'cells.csv').exists()
+    with pytest.raises(ValueError,match='Area sconosciuta'):
+        worker.aoi='missing';data.prepare(cfg,worker)
+    worker.aoi='other_aoi';assert data.prepare(cfg,worker) is None
+    final=data.prepare(cfg,args)
+    assert len(pd.read_csv(final))==7
+
+
+def test_area_worker_requires_disabled_shared_cache(tmp_path,observations):
+    frame,csv,args,items,calls=observations
+    cfg=make_cfg(tmp_path);cfg['cells']=str(csv)
+    worker=argparse.Namespace(**vars(args));worker.aoi='fixture_aoi'
+    with pytest.raises(ValueError,match='block_cache_gib=0'):data.prepare(cfg,worker)
+
+
+def test_full_prepare_and_area_worker_exclude_each_other(tmp_path):
+    from biomap_v2.preparation import preparation_locks
+    cfg=make_cfg(tmp_path)
+    with preparation_locks(cfg,['prepare','prepare_a','prepare_b']):
+        with pytest.raises(RuntimeError,match='altro prepare'):
+            with preparation_locks(cfg,['prepare_a']):pass
+    with preparation_locks(cfg,['prepare_a']):
+        with preparation_locks(cfg,['prepare_b']):pass
+        with pytest.raises(RuntimeError,match='altro prepare'):
+            with preparation_locks(cfg,['prepare','prepare_a','prepare_b']):pass
+
+
+def test_disabled_block_cache_leaves_existing_cache_untouched(tmp_path,observations):
+    frame,csv,args,items,calls=observations
+    cfg=make_cfg(tmp_path);cfg['cells']=str(csv)
+    points=data.sample_points(next(frame.itertuples()),25);item=items['sentinel-2-l2a'][0]
+    p=PreparationProfile(cfg,1);g=SpaceGuard(cfg,p);reader=data.Reader(cfg,p,g);expected=reader.values(item,'B04',points);reader.close();p.finish('complete')
+    cache=root(cfg)/'observation_cache/native_v1'
+    before={path:digest(path) for path in cache.rglob('*') if path.is_file()}
+    assert before
+    cfg['acquisition'].update(block_cache_gib=0,memory_cache_mib=0)
+    p2=PreparationProfile(cfg,1);g2=SpaceGuard(cfg,p2);reader2=data.Reader(cfg,p2,g2)
+    np.testing.assert_array_equal(reader2.values(item,'B04',points),expected)
+    assert p2.counters['remote_blocks_read']>0
+    reader2.close();p2.finish('complete')
+    assert {path:digest(path) for path in cache.rglob('*') if path.is_file()}==before
+
+
+def test_share_limits_one_worker_within_global_cap(tmp_path):
+    cfg=make_cfg(tmp_path);cfg['storage']['max_new_gib']=1e-6
+    profile=PreparationProfile(cfg,1);guard=SpaceGuard(cfg,profile)
+    with pytest.raises(RuntimeError,match='Budget disco'):guard.check(1024**2)
+    guard.check(100);profile.finish('complete')
 
 
 def test_parallel_band_reads_are_bounded_and_deterministic(tmp_path,observations,monkeypatch):
@@ -292,16 +438,58 @@ def test_cache_identity_ignores_sas_but_tracks_source_version(tmp_path,caplog):
     assert 'SECRET' not in caplog.text and '<redacted>' in caplog.text
 
 
-@pytest.mark.parametrize('batch,workers',[(1,1),(3,2)])
-def test_batch_boundaries_and_worker_counts_do_not_change_arrays(tmp_path,observations,batch,workers):
+@pytest.mark.parametrize('batch,workers,days,block_gib,memory',[(1,1,1,.05,4),(3,2,1,.05,4),(3,2,3,.05,4),(8,8,4,0,0),(8192,16,16,0,0)])
+def test_batch_boundaries_and_worker_counts_do_not_change_arrays(tmp_path,observations,batch,workers,days,block_gib,memory):
     frame,csv,args,items,calls=observations
     legacy=make_cfg(tmp_path/'legacy','legacy');legacy['cells']=str(csv)
-    fast=make_cfg(tmp_path/'fast');fast['cells']=str(csv);fast['acquisition'].update(batch_cells=batch,io_workers=workers)
+    fast=make_cfg(tmp_path/'fast');fast['cells']=str(csv)
+    fast['acquisition'].update(batch_cells=batch,io_workers=workers,day_workers=days,block_cache_gib=block_gib,memory_cache_mib=memory)
     data.prepare(legacy,args);data.prepare(fast,args)
     a=prepared_arrays(legacy,frame);b=prepared_arrays(fast,frame)
     assert a.keys()==b.keys()
     for cell in a:
-        for key in a[cell]:np.testing.assert_array_equal(a[cell][key],b[cell][key])
+        assert list(a[cell])==list(b[cell])
+        for key in a[cell]:
+            assert a[cell][key].dtype==b[cell][key].dtype
+            np.testing.assert_array_equal(a[cell][key],b[cell][key])
+    # The scene manifest is part of the result: comparing it also proves day ordering under parallel days.
+    for cell in a:
+        old=json.loads((data.cell_directory(legacy,cell)/'manifest.json').read_text())
+        new=json.loads((data.cell_directory(fast,cell)/'manifest.json').read_text())
+        assert old['scene_manifest']==new['scene_manifest'] and old['valid_fraction']==new['valid_fraction']
+
+
+def test_whole_area_batch_reads_each_block_once(tmp_path,observations):
+    frame,csv,args,items,calls=observations
+    def blocks(batch):
+        cfg=make_cfg(tmp_path/f'batch{batch}');cfg['cells']=str(csv)
+        cfg['acquisition'].update(batch_cells=batch,block_cache_gib=0,memory_cache_mib=0,day_workers=2)
+        data.prepare(cfg,args)
+        return json.loads(next((root(cfg)/'diagnostics').glob('*_prepare/profile.json')).read_text())['counters']['remote_blocks_read']
+    assert blocks(8)<blocks(1)
+
+
+def test_failed_block_read_keeps_finished_blocks(tmp_path,observations,monkeypatch):
+    import biomap_v2.raster_cache as cache
+    frame,csv,args,items,calls=observations
+    cfg=make_cfg(tmp_path);cfg['cells']=str(csv);cfg['acquisition'].update(block_cache_gib=0,memory_cache_mib=0)
+    p=PreparationProfile(cfg,1);g=SpaceGuard(cfg,p);reader=data.Reader(cfg,p,g);item=items['sentinel-2-l2a'][0]
+    points=np.concatenate([data.sample_points(cell,25) for cell in frame.itertuples()])
+    expected=data.Reader().values(item,'B04',points);original=cache.BlockStore.get;failed=[]
+    def fail_once(self,key,asset):
+        if len(failed)==0 and p.counters['remote_blocks_read']>=1:
+            failed.append(key);raise rasterio.errors.RasterioIOError('simulated throttling')
+        return original(self,key,asset)
+    monkeypatch.setattr(cache.BlockStore,'get',fail_once);monkeypatch.setattr(cache.time,'sleep',lambda delay:None)
+    np.testing.assert_array_equal(reader.values(item,'B04',points),expected)
+    assert failed and p.counters['remote_retries']==1
+    # The block finished before the failure is not fetched a second time.
+    blocks=p.counters['remote_blocks_read']
+    p3=PreparationProfile(cfg,1);g3=SpaceGuard(cfg,p3);clean=data.Reader(cfg,p3,g3)
+    monkeypatch.setattr(cache.BlockStore,'get',original)
+    clean.values(item,'B04',points)
+    assert blocks==p3.counters['remote_blocks_read']
+    reader.close();clean.close();p.finish('complete');p3.finish('complete')
 
 
 def test_stac_timeouts_pagination_and_post_retry_policy(tmp_path,observations,monkeypatch):

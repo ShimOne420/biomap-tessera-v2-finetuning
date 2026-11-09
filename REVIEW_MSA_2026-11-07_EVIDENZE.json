@@ -1,0 +1,55 @@
+{
+  "review_date": "2026-11-07",
+  "reviewed_commit": "2e24f979ec78a9509ee1797ef130914b829ef4f8",
+  "baseline_commit": "dc8604abedd68733aa5a5a06e80b27acf302b0e9",
+  "upstream_suite": {
+    "passed": 55,
+    "warnings": 113,
+    "seconds": 38.05,
+    "platform": "macOS CPU Python 3.12"
+  },
+  "ci": {
+    "run_id": 42252057039,
+    "windows": "success",
+    "linux": "success"
+  },
+  "diagnostic_cases_reproduced": 5,
+  "production_data_modified": false,
+  "university_run_completion_verified": false,
+  "reported_1200_real_cell_equivalence_independently_repeated": false,
+  "observations": [
+    {
+      "case": "checkpoint_dtype",
+      "original": "uint16",
+      "modified": "float32",
+      "final": "float32",
+      "prepare_accepted": true
+    },
+    {
+      "case": "global_quota",
+      "cap_mib": 200,
+      "observed_mib": 265.0,
+      "all_local_checks_passed": true
+    },
+    {
+      "case": "restart_progress",
+      "actual_saved": 1000,
+      "reported_saved": 800,
+      "actual_blocks": 3000,
+      "reported_blocks": 2000,
+      "eta_hours": 0.04861112195888887
+    },
+    {
+      "case": "consolidation_decode",
+      "cells": 513,
+      "chunks": 2,
+      "bands_full_decodes": 4,
+      "valid_full_decodes": 4
+    },
+    {
+      "case": "final_status",
+      "final_validation": "failed",
+      "reported_status": "complete"
+    }
+  ]
+}

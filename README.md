@@ -6,6 +6,8 @@
 
 Il [report tecnico delle correzioni precedenti](REPORT_CORREZIONI_PREPARAZIONE_MSA.md) e la [guida di diagnosi](PREPARAZIONE_MSA_PRESTAZIONI.md) descrivono la prima versione del motore ottimizzato.
 
+**Revisione indipendente del 7 novembre:** [analisi del codice aggiornato, criticità riprodotte e strategia futura](REVIEW_ACCELERAZIONE_MSA_2026-11-07.md). L'ETA e il solo stato parallelo `complete` non certificano la validazione finale dell'intero benchmark; la durata di cinque ore non è confermata dalle evidenze disponibili.
+
 Repository operativo per **Windows nativo, NVIDIA RTX 5080 16 GB, 32 GB RAM**. L'obiettivo è confrontare gli embedding V2 frozen con quelli ottenuti aggiornando i pesi dello student **Medium** (~21 milioni di parametri), per riprodurre **GLOBIO overall MSA 2020** e **NHM BII v2.1.1 2020**.
 
 **Stato:** codice e protocollo implementati; test CPU, parità con l'inferenza ufficiale e controlli delle dipendenze sono descritti in `VALIDATION.md`. La prova CUDA/VRAM effettiva richiede il computer universitario. Nessun risultato di fine-tuning scientifico è già garantito. I test storici sono già osservati e hanno ruolo esplorativo. Umbria nord resta sigillata.

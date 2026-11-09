@@ -7,7 +7,7 @@ name = "biomap-tessera-v2-finetuning"
 version = "0.1.0"
 description = "Windows-ready TESSERA V2 probing and supervised fine-tuning for GLOBIO MSA and NHM BII"
 requires-python = ">=3.12,<3.13"
-dependencies = ["numpy", "pandas", "PyYAML", "rasterio", "pyproj", "scikit-learn", "scipy", "matplotlib", "requests", "huggingface-hub", "xgboost", "joblib", "torch"]
+dependencies = ["numpy", "pandas", "PyYAML", "rasterio", "pyproj", "scikit-learn", "scipy", "matplotlib", "requests", "huggingface-hub", "xgboost", "joblib", "torch", "openpyxl", "filelock"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

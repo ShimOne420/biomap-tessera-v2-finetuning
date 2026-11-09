@@ -1,5 +1,13 @@
 # BioMAP — TESSERA V2: probing e fine-tuning MSA/BII
 
+**E2 Frozen CNN — nuova fase isolata:** leggere [PIANO_OPERATIVO.md](PIANO_OPERATIVO.md)
+per i comandi PowerShell dall'apertura in VS Code fino a CV, refit, Excel e GeoTIFF.
+Il codice è in `src/biomap_ml/`, configurazione `configs/e2_msa.yaml`. Non modificare il
+checkout del probing attivo: usare `biomap-finetuning-dev` sul branch `finetuning-dev`.
+E2 non aggiorna TESSERA; E4/E5 sono i passi successivi, non run già eseguiti.
+Il [report di implementazione](docs/ml/TESSERA_IMPLEMENTATION_HANDOVER.md) spiega ogni
+modulo, le scelte, i controlli e i limiti verificati.
+
 **Nuovo run MSA comparativo V1/V2 (127.909 sviluppo, 4.991 Liguria, tre fold geografici): [guida Windows dedicata](README_RUN_MSA_V1_V2.md).** Include diagnosi/recupero dei target mancanti dopo lo smoke.
 
 **Preparazione MSA accelerata:** il profilo Liguria tratta ora ogni area come un unico lotto e può lavorare con un processo per area. Su 1.200 celle reali già complete il nuovo motore produce file identici byte per byte; la velocità è limitata dalla banda di rete. Vedere [Preparazione parallela](#preparazione-parallela-per-aree) e il [report dettagliato delle modifiche](REPORT_ACCELERAZIONE_PREPARE_MSA.md). Le serie valide già acquisite vengono conservate; celle, date, punti e protocollo rimangono invariati.
@@ -14,7 +22,10 @@ Repository operativo per **Windows nativo, NVIDIA RTX 5080 16 GB, 32 GB RAM**. L
 
 ## Come è organizzato
 
-Solo tre ingressi Python e un setup PowerShell. Ogni script/modulo/test inizia con un commento che spiega cosa fa, input, output, parametri, risorse e ripresa.
+Tre ingressi Python legacy e un setup PowerShell restano compatibili. La nuova fase E2
+usa i comandi `python -m biomap_ml.prepare/train/evaluate/predict`, descritti nel piano
+operativo, così mantiene separate sorgente in sola lettura e cartella di lavoro.
+Ogni nuovo modulo inizia con commenti su scopo, input, output e controlli.
 
 | Ingresso | Cosa fa |
 |---|---|

@@ -12,3 +12,6 @@ __pycache__/
 *.joblib
 .env
 .DS_Store
+data_dev/
+*.sqlite3*
+*.xlsx

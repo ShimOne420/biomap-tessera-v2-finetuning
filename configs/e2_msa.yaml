@@ -1,0 +1,22 @@
+# E2: encoder Medium congelato + CNN spaziale, senza nuovi download o fine-tuning.
+# source-data-root indica la cartella che contiene cells.csv e series, NON il suo genitore.
+source_config: configs/msa_v1_liguria.yaml
+runtime:
+  device: cuda:0
+  threads: 4
+  pixel_batch: 16
+  mixed_precision: true
+training:
+  seed: 42
+  warmup_epochs: 5
+  epochs: 50
+  patience: 8
+  min_delta: 0.00001
+  microbatch: 2
+  effective_batch: 16
+  learning_rate: 0.001
+  weight_decay: 0.01
+  clip_grad: 1.0
+storage:
+  reserve_gib: 20
+  max_work_gib: 50

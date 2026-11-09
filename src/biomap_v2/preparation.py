@@ -21,6 +21,14 @@
 #      finish_cell, che filtra i punti, scrive in modo atomico e rilegge per verifica.
 #   8. A cella salvata si rimuovono checkpoint ed eventuali intermedi per cella del vecchio formato.
 #
+# ECCEZIONE DI COPERTURA (acquisition.low_coverage_cells)
+#   Una cella sotto sampling.min_valid_fraction viene esclusa con excluded.json, che di norma è definitivo.
+#   Se il suo cell_id è in acquisition.low_coverage_cells:
+#   - completed_cell non considera definitivo excluded.json e rimette la cella tra quelle da acquisire;
+#   - finish_cell la salva con i soli pixel validi (almeno uno), con low_coverage_accepted=true nel manifest,
+#     e rinomina excluded.json in excluded.superseded.json per conservarne la storia.
+#   Punti, scene e mosaicking restano identici: cambia solo la decisione finale di tenere la cella.
+#
 # PERCHÉ IL RISULTATO NON CAMBIA
 #   Lotti, thread e processi decidono solo l'ordine dell'I/O. Punti, scene, ordine del mosaicking,
 #   maschere, conversioni e ordine dei giorni nella serie restano gli stessi. Provato da
@@ -130,7 +138,9 @@ def completed_cell(cfg,cell,directory,guard,profile):
         # Exclusions recorded with their identity are final: intermediates are no longer retained for them.
         if excluded.exists():
             info=json.loads(excluded.read_text(encoding='utf-8'))
-            if 'protocol' in info and matches_identity(cfg,cell,info):return {'fraction':None,'sha256':None,'cached':True}
+            waived=cell.cell_id in set(cfg['acquisition'].get('low_coverage_cells',[]))
+            # A cell listed in low_coverage_cells is acquired again and kept with its valid pixels.
+            if 'protocol' in info and matches_identity(cfg,cell,info) and not waived:return {'fraction':None,'sha256':None,'cached':True}
         return None
     with profile.span('cell_cache_validation'):
         info=json.loads(meta.read_text(encoding='utf-8'))
@@ -355,7 +365,9 @@ class BatchAcquirer:
             good=outputs['mask'].sum(axis=1)>=self.cfg['sampling']['min_s2_observations']
             good &= (np.any(outputs['asc']!=0,axis=-1).sum(axis=1)+np.any(outputs['desc']!=0,axis=-1).sum(axis=1))>=self.cfg['sampling']['min_s1_observations']
             fraction=float(good.mean())
-        if fraction<self.cfg['sampling']['min_valid_fraction']:
+        from .common import low_coverage_waived
+        waived=fraction<self.cfg['sampling']['min_valid_fraction'] and low_coverage_waived(self.cfg,cell.cell_id,fraction)
+        if fraction<self.cfg['sampling']['min_valid_fraction'] and not waived:
             self.guard.json(directory/'excluded.json',{'reason':'insufficient_sentinel_coverage','valid_fraction':fraction,**cell_identity(self.cfg,cell)})
             return {'fraction':None,'sha256':None,'cached':False}
         for name in ['s2','mask','asc','desc']:outputs[name]=outputs[name][good]
@@ -364,7 +376,10 @@ class BatchAcquirer:
             'sampling':self.cfg['sampling'],'bounds':[cell.west,cell.south,cell.east,cell.north],
             'valid_fraction':fraction,'band_order':BANDS,'doy_policy':'actual day of year capped at 365',
             'sar_units':'MPC intensity -> 10log10 -> +50 -> *200 int16','scene_manifest':manifest,'io_engine':'batched_native_v1'}
+        if waived:meta['low_coverage_accepted']=True
         info=atomic_pair(directory/'series.npz',directory/'manifest.json',outputs,meta,self.guard,self.profile)
+        if waived and (directory/'excluded.json').exists():
+            self.guard.replace(directory/'excluded.json',directory/'excluded.superseded.json')
         with self.profile.span('series_verification'):
             with np.load(directory/'series.npz',allow_pickle=False) as verified:
                 for key,value in outputs.items():

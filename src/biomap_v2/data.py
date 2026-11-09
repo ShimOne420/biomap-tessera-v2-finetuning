@@ -28,6 +28,9 @@
 #
 # PARAMETRI
 #   --limit N, --aoi AREA, --target-raster PATH, --import-cache PATH, --set sampling.*, --set acquisition.*.
+#   acquisition.low_coverage_cells: cell_id che vengono tenuti anche sotto sampling.min_valid_fraction,
+#   con i soli pixel validi (almeno uno) e low_coverage_accepted=true nel manifest. Vale per entrambi i
+#   motori; il dettaglio del motore optimized è nell'intestazione di preparation.py.
 #
 # RISORSE
 #   Internet e rasterio; disco con riserva; S1 può richiedere PC_SDK_SUBSCRIPTION_KEY.
@@ -270,7 +273,9 @@ def acquire(cfg,cell,directory,reader=None,profile=None):
     good=outputs['mask'].sum(axis=1)>=cfg['sampling']['min_s2_observations']
     good &= (np.any(outputs['asc']!=0,axis=-1).sum(axis=1)+np.any(outputs['desc']!=0,axis=-1).sum(axis=1))>=cfg['sampling']['min_s1_observations']
     fraction=float(good.mean())
-    if fraction<cfg['sampling']['min_valid_fraction']:
+    from .common import low_coverage_waived
+    waived=fraction<cfg['sampling']['min_valid_fraction'] and low_coverage_waived(cfg,cell.cell_id,fraction)
+    if fraction<cfg['sampling']['min_valid_fraction'] and not waived:
         save_json(directory/'excluded.json',{'reason':'insufficient_sentinel_coverage','valid_fraction':fraction})
         return None
     for key in ['s2','mask','asc','desc']:outputs[key]=outputs[key][good]
@@ -281,7 +286,7 @@ def acquire(cfg,cell,directory,reader=None,profile=None):
         'pixels_per_cell':cfg['sampling']['pixels_per_cell'],'sampling':cfg['sampling'],
         'bounds':[cell.west,cell.south,cell.east,cell.north],'valid_fraction':fraction,'band_order':BANDS,
         'doy_policy':'actual day of year capped at 365','sar_units':'MPC intensity -> 10log10 -> +50 -> *200 int16',
-        'scene_manifest':manifest})
+        'scene_manifest':manifest,**({'low_coverage_accepted':True} if waived else {})})
     # Only delete our verified day intermediates after the complete series is durable.
     # Sources/imported originals are never deleted. This bounds inode count and cache size.
     with np.load(path) as verified:

@@ -65,6 +65,10 @@ acquisition:
   read_timeout_seconds: 30
   http_retries: 2
   shared_catalogs: true # un catalogo annuale per AOI, non 132.900 copie
+  # Celle V1 tenute anche sotto min_valid_fraction (0,8), con i soli pixel validi; manifest con low_coverage_accepted.
+  # Run del 6/11/2026: puglia_tavoliere, fold 1, 18/19/19/15 pixel validi su 25. Diagnosi:
+  # data\msa_v1_liguria\diagnostics\20261106T232908453234_coverage. Senza di esse il train sarebbe 127.905 celle.
+  low_coverage_cells: ["17443:70453", "17443:70454", "17445:70460", "17490:70434"]
 evaluation:
   mode: historical_groupkfold
   reference: configs/msa_v1_liguria_reference.json

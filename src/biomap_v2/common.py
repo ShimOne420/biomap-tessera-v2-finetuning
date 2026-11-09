@@ -15,6 +15,10 @@
 # LIMITI DI acquisition, CONTROLLATI DA config()
 #   batch_cells 1-16384, io_workers 1-16, day_workers 1-16, memory_cache_mib 0-2048, read_attempts 1-10,
 #   block_cache_gib 0-1024. day_workers vale 1 se il YAML non lo indica.
+#   low_coverage_cells: elenco di cell_id (stringhe), vuoto se il YAML non lo indica. Per queste sole celle
+#   prepare accetta una frazione di pixel validi sotto sampling.min_valid_fraction, purché maggiore di zero
+#   (vedi low_coverage_waived). Sta in acquisition e non in sampling di proposito: sampling fa parte
+#   dell'identità di ogni cella in cache, quindi cambiarlo invaliderebbe tutte le serie già scaricate.
 #
 # INPUT E OUTPUT
 #   Input: configurazione, CSV celle, predizioni. Output: JSON, CSV, PNG e report Markdown.
@@ -67,7 +71,8 @@ def config(indicator, args):
     acquisition=cfg.setdefault('acquisition',{})
     defaults={'engine':'legacy','shared_catalogs':False,'batch_cells':16,'io_workers':4,'day_workers':1,
         'block_cache_gib':8,'memory_cache_mib':256,'progress_seconds':10,
-        'read_attempts':3,'connect_timeout_seconds':10,'read_timeout_seconds':30,'http_retries':2}
+        'read_attempts':3,'connect_timeout_seconds':10,'read_timeout_seconds':30,'http_retries':2,
+        'low_coverage_cells':[]}
     for key,value in defaults.items():acquisition.setdefault(key,value)
     if cfg['indicator'] != indicator:
         raise ValueError('Indicatore CLI e configurazione discordanti')
@@ -110,9 +115,18 @@ def config(indicator, args):
             raise ValueError(f'acquisition.{key}: intero fra {low} e {high}')
     if not isinstance(acquisition['block_cache_gib'],(int,float)) or not 0<=acquisition['block_cache_gib']<=1024:
         raise ValueError('acquisition.block_cache_gib fuori intervallo')
+    waived=acquisition['low_coverage_cells']
+    if not isinstance(waived,list) or not all(isinstance(c,str) and c for c in waived) or len(set(waived))!=len(waived):
+        raise ValueError('acquisition.low_coverage_cells: lista di cell_id distinti, tra virgolette (es. "17443:70453")')
     if acquisition['engine']=='optimized' and not acquisition['shared_catalogs']:
         raise ValueError('Il motore ottimizzato richiede cataloghi AOI già condivisi; usare il profilo msa_v1_liguria')
     return cfg
+
+
+def low_coverage_waived(cfg,cell_id,fraction):
+    # True solo per le celle elencate in acquisition.low_coverage_cells con almeno un pixel valido:
+    # in quel caso prepare salva la serie con i pixel validi disponibili invece di escludere la cella.
+    return fraction>0 and str(cell_id) in set(cfg.get('acquisition',{}).get('low_coverage_cells',[]))
 
 
 def root(cfg):

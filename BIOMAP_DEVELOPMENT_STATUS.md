@@ -13,6 +13,7 @@ Aggiornato al 10 novembre 2026. Milestone corrente: **M1a–M2, probing denso li
 - Verificato il Medium CPU su 32 pixel: max |Δ| 2,15×10⁻⁶, tolleranza 10⁻⁴.
 - Integrati Dummy/Ridge/HistGB/XGBoost/MLP, report dinamico e protezione dei risultati.
 - Codice per download del pacchetto, verifica hash e run senza percorsi Mac.
+- Release pubblicata e download effettivo con `fetch-bundle` verificato, inclusi estrazione e hash.
 - Vecchi README e piano E2/E4/E5 spostati in archivio; nuova roadmap frozen attiva.
 
 ## Esecuzione successiva dell'utente
@@ -41,6 +42,8 @@ del nuovo probing. Il report storico resta in `reports/REPORT_V1_V2_DENSE_MSA.md
 - Stessa rappresentazione, stesse celle, fold e iperparametri fra V1 e V2.
 - E2 spaziale non viene adattata silenziosamente ai vettori medi.
 - CSV/JSON fonte di verità, Excel ricostruibile, run storici preservati.
+- Il recupero di un errore finale Excel/report ricostruisce gli output dai CSV e aggiorna
+  lo stato, senza ripetere i regressori.
 
 ## Evidenze e prossime milestone
 

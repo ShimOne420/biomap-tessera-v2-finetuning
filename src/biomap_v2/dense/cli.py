@@ -126,6 +126,7 @@ def run(args, equivalence=None):
     config = parameters(args)
     models = tuple(dict.fromkeys(['DummyMean', *args.models]))
     protocol = {'created': timestamp(), 'paths': inputs, 'n_cells': len(frame), 'folds': args.folds,
+                'report_file': report.name,
                 'seed': args.seed, 'bootstrap': args.bootstrap, 'block_m': args.block_m,
                 'histgb_params': config['histgb'], 'mlp_params': config['mlp'], 'xgb_params': config['xgb'],
                 'ridge_alpha': args.ridge_alpha, 'models': models, 'pooling': 'dense_arithmetic_mean_128',
@@ -205,8 +206,8 @@ def main(argv=None):
             parser.error('verify-bundle richiede --bundle')
         print(verify_bundle(args.bundle, paths(args)['checkpoint'], args.device, args.pixel_batch, args.tolerance))
     elif args.command == 'export':
-        from .exports import export_excel
-        print(export_excel(Path(args.out)))
+        from .exports import export_run
+        print(export_run(Path(args.out)))
     else:
         {'check-v1': check_v1, 'check-v2': check_v2, 'check-encoder': check_encoder,
          'run': run, 'all': all_steps}[args.command](args)

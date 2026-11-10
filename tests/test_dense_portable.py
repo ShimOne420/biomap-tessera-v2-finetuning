@@ -156,8 +156,12 @@ def test_cli_complete_bundle_no_overwrite_and_export(dense_raw, tmp_path):
     checksum = digest(out/'predictions.csv')
     with pytest.raises(FileExistsError, match='già un run'):
         main(args)
+    (out/'REPORT_V1_V2_DENSE_MSA.md').unlink()
+    save_json(out/'run_state.json', {'status': 'failed_or_interrupted'})
     assert main(['export', '--out', str(out)]) == 0
     assert digest(out/'predictions.csv') == checksum
+    assert (out/'REPORT_V1_V2_DENSE_MSA.md').is_file()
+    assert json.loads((out/'run_state.json').read_text())['status'] == 'complete'
 
 
 def test_gzip_sampling_does_not_write_to_input(dense_raw, tmp_path):

@@ -4,6 +4,8 @@
   "local_full_suite_before_optional_reference_test": {"passed": 85, "warnings": 775, "seconds": 51.60},
   "local_dense_portable_suite_before_optional_reference_test": {"passed": 7, "seconds": 20.33},
   "local_dense_portable_final": {"passed": 8, "warnings": 39, "seconds": 20.44},
+  "local_export_recovery_regression": {"passed": 8, "warnings": 39, "seconds": 19.85},
+  "public_release_download_verified": true,
   "real_dense_liguria": {
     "cells": 4991,
     "pixels": 3545951,

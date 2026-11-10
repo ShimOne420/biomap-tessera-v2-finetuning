@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
+from biomap_v2.common import save_json
 
 
 # Numericità e NoData preservati: le celle non disponibili restano vuote, non zero.
@@ -72,3 +73,20 @@ def export_excel(out):
         add_table(register, 'Risultati', all_rows)
         save_book(register, out.parent/'DENSE_MSA_experiment_registry.xlsx')
     return out/'risultati.xlsx'
+
+
+# Recupera un errore finale di Excel/report dai CSV completi, senza ripetere i regressori.
+def export_run(out):
+    from .report import write_report
+    out = Path(out)
+    protocol = json.loads((out/'protocol.json').read_text(encoding='utf-8'))
+    history = out/'historical_v1.json'
+    write_report(out/Path(protocol.get('report_file', 'REPORT_V1_V2_DENSE_MSA.md')).name,
+                 {'metrics': pd.read_csv(out/'metrics.csv'), 'paired_delta': pd.read_csv(out/'paired_delta.csv'),
+                  'protocol': protocol, 'equivalence': protocol.get('equivalence', {}),
+                  'historical': json.loads(history.read_text()) if history.is_file() else None})
+    result = export_excel(out)
+    state = json.loads((out/'run_state.json').read_text())
+    state.update(status='complete', exports_rebuilt_from_csv=True)
+    save_json(out/'run_state.json', state)
+    return result

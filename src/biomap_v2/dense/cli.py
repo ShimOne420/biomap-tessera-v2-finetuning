@@ -238,10 +238,7 @@ def all_steps(args):
     if args.skip_encoder_check:
         equivalence['encoder'] = None
     else:
-        try:
-            equivalence['encoder'] = check_encoder(args)
-        except Exception as error:
-            equivalence['encoder'] = {'error': f'{type(error).__name__}: {error}'}
+        equivalence['encoder'] = check_encoder(args)
     args.v1_features = str(Path(args.out) / 'v1_recomputed.parquet')
     args.v2_features = str(Path(args.out) / 'v2_recomputed.parquet')
     return run(args, equivalence)

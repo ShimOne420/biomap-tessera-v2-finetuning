@@ -42,7 +42,8 @@ Aprire PowerShell:
 ```powershell
 Set-Location 'C:\Users\brome\Desktop\BIOMAP_TESSERA_V2\biomap-tessera-v2-finetuning'
 git status --short
-git pull --ff-only origin main
+git switch finetuning-dev
+git pull --ff-only origin finetuning-dev
 $Python = Join-Path $PWD '.venv\Scripts\python.exe'
 $DataRoot = (Resolve-Path '..\data').Path
 $Cfg = 'configs\msa_v1_liguria.yaml'
@@ -171,3 +172,29 @@ Artefatti principali:
 - `report.md`: lettura del protocollo e limiti del confronto.
 
 Delta negativo in MAE/RMSE/MAPE significa errore numericamente più basso nel nuovo run. Non equivale da solo a una superiorità causale del solo encoder, dati il diverso pooling e il test già osservato. Non usare Liguria per cambiare iperparametri dopo averne visto il risultato.
+
+## 10. Benchmark denso V1/V2 a supporto identico
+
+Il confronto operativo V2 usa 25 punti stratificati, mentre il riferimento V1 usava medie dense di pixel. Il pacchetto `src/biomap_v2/dense/` isola il solo encoder: ricalcola V1 e V2 con **la stessa media dei 128 embedding su tutti i pixel validi** della cella, gli stessi fold spaziali e gli stessi iperparametri, poi confronta i due errori in modo appaiato.
+
+Il run locale su Liguria Levante (4.991 celle, 5 bande spaziali, bootstrap su celle e su blocchi da 2 km) è documentato in [`reports/REPORT_V1_V2_DENSE_MSA.md`](reports/REPORT_V1_V2_DENSE_MSA.md). In sintesi: il ricalcolo V1 con troncamento riproduce esattamente il parquet storico, la riaggregazione V2 riproduce le medie dense storiche e l'encoder attivo riproduce gli embedding V2 entro 2,4e-6. V2 riduce MAE e RMSE sia con Ridge sia con HistGB; l'intervallo bootstrap a blocchi esclude lo zero, ma il margine di HistGB è piccolo. Resta un confronto interno alla Liguria, non il trasferimento sui 17 AOI di sviluppo, perché le feature V2 dense di quegli AOI non esistono ancora.
+
+Richiede le tile V1 grezze (`global_0.1_degree_representation` e `global_0.1_degree_tiff_all`) e gli artefatti V2 densi già calcolati (`embeddings_fp32.npy`, `geometry.npz`, input compressi). Non rigenera gli embedding con la GPU: verifica quelli esistenti.
+
+```powershell
+$Env:OMP_NUM_THREADS = '1'
+& $Python -m pip install 'pyarrow==26.0.1'   # solo se manca
+& $Python -m pytest tests\test_dense_benchmark.py -q
+& $Python scripts\dense_msa.py all `
+  --v1-tiles '<tessera\2020 V1>' `
+  --target '<msa_2020_unitless.tif>' `
+  --v1-parquet '<tessera_globio_msa.parquet>' `
+  --v2-parquet '<tessera_v2_medium_globio_msa.parquet>' `
+  --v2-tiles '<cartella AOI con i grid_* V2 densi>' `
+  --checkpoint '<student_medium.pt>' `
+  --v1-model '<selected_frozen_model.joblib>' `
+  --reference 'configs\msa_v1_liguria_reference.json' `
+  --out 'outputs\dense_benchmark' --device cpu
+```
+
+`all` esegue in ordine `check-v1`, `check-v2`, `check-encoder` e `run`, e si ferma se un'equivalenza fallisce. Su Windows sostituire i percorsi tra apici con quelli reali; su una macchina senza i dati grezzi è possibile eseguire solo i test sintetici. Gli artefatti del run finiscono in `outputs/dense_benchmark/` (ignorata da Git); il report viene riscritto in `reports/REPORT_V1_V2_DENSE_MSA.md`.

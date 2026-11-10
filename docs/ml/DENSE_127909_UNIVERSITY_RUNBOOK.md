@@ -2,7 +2,7 @@
 
 ## Stato e condizioni
 
-Codice nuovo sul branch `dense-127909`; main e run legacy non modificati. **Nessuna campagna completa eseguita durante lo sviluppo.** Le prove CPU non certificano CUDA. Il riferimento completo non è ancora pubblicato: il target storico Abruzzo sul Mac è dataless iCloud e la lettura raster è fallita. Finché `pack-reference` non completa tutti i controlli, l'estrazione completa non è avviabile. Non usare il bundle ligure come reference multi-AOI.
+Codice integrato su `main` tramite PR #2, su richiesta esplicita dell’utente. I run legacy non sono stati modificati. **Nessuna campagna completa eseguita durante lo sviluppo.** Le prove CPU non certificano CUDA. Il riferimento completo non è ancora pubblicato: il target storico Abruzzo sul Mac è dataless iCloud e la lettura raster è fallita. Finché `pack-reference` non completa tutti i controlli, l'estrazione completa non è avviabile. Non usare il bundle ligure come reference multi-AOI.
 
 ## 1. Recuperare il codice senza rompere il run attivo
 
@@ -14,8 +14,8 @@ git status --short
 # Solo se ci sono modifiche da conservare:
 # git stash push -u -m 'backup prima dense127909'
 git fetch origin
-git switch --track origin/dense-127909
-# Se il branch locale esiste già: git switch dense-127909; git pull --ff-only origin dense-127909
+git switch main
+git pull --ff-only origin main
 $Py = (Resolve-Path '.\.venv\Scripts\python.exe').Path
 & $Py -m pip install -r requirements-lock.txt
 & $Py -m pip install -e . --no-deps --no-build-isolation

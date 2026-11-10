@@ -51,7 +51,7 @@ def extract(args, spec, frame, profile=False):
             if source.exists() and digest(source/'geometry.npz')!=digest(tile/'geometry.npz'):raise ValueError('Geometry sorgente discordante')
             with np.load(tile/'geometry.npz') as z: ids=lookup[z['cell_ids']]
             for low in range(0,len(ids),args.chunk_size):
-                high=min(low+args.chunk_size,len(ids)); tag={**identity(tile,low,high),'checkpoint':WEIGHTS_SHA256,'amp':args.amp}
+                high=min(low+args.chunk_size,len(ids)); tag={**identity(tile,low,high),'checkpoint':WEIGHTS_SHA256,'amp':args.amp,'extraction_code_sha256':digest(Path(__file__))}
                 rawpath=work/'inputs'/aoi/tile_name/f'{low}-{high}.npz'
                 input_manifest=source/'inputs_manifest.json'
                 tag['inputs_sha256']=digest(rawpath) if rawpath.exists() else (digest(input_manifest) if input_manifest.exists() else 'missing')

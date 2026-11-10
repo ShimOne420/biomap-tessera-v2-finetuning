@@ -17,7 +17,9 @@ from .state import atomic_npz, cached
 # Identità fisica del chunk: non dipende da dove sono montati i dischi.
 def identity(tile, low, high):
     return {'protocol':'dense127909-input-r1','geometry':digest(tile/'geometry.npz'),
-            'low':low,'high':high,'year':2020,'bands':BANDS}
+            'low':low,'high':high,'year':2020,'bands':BANDS,
+            'preprocessing_sha256':digest(Path(__file__)),
+            'official_preprocessing_sha256':digest(Path(__file__).parents[1]/'reference.py')}
 
 # Gzip viene decompresso una volta nella cache scrivibile, non nella directory sorgente.
 def array(source, key, staging):

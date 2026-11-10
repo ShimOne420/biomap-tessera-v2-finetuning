@@ -1,3 +1,9 @@
+# Aggiornamento: campagna densa 127.909
+
+La nuova CLI è `scripts/dense_campaign.py`, branch `dense-127909`. [Runbook universitario](docs/ml/DENSE_127909_UNIVERSITY_RUNBOOK.md) e [audit con blocchi reali](docs/ml/DENSE_127909_AUDIT.md). Non esegue training o acquisizioni automaticamente. Il reference multi-AOI è ancora bloccato da target storici iCloud non leggibili; non confondere codice implementato con dati pronti. Nessuna nuova metrica scientifica prodotta.
+
+---
+
 # Piano operativo — priorità al probing V2 denso
 
 Data: 10 novembre 2026. La roadmap allegata dall'utente sostituisce il precedente piano

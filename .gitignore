@@ -16,3 +16,6 @@ data_dev/
 *.sqlite3*
 *.xlsx
 outputs/dense_benchmark/
+
+# New dense multi-AOI campaign: data/cache/models are never Git source.
+/outputs/dense_127909/

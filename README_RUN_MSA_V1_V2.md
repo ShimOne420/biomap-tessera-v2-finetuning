@@ -42,8 +42,8 @@ Aprire PowerShell:
 ```powershell
 Set-Location 'C:\Users\brome\Desktop\BIOMAP_TESSERA_V2\biomap-tessera-v2-finetuning'
 git status --short
-git switch finetuning-dev
-git pull --ff-only origin finetuning-dev
+git switch main
+git pull --ff-only origin main
 $Python = Join-Path $PWD '.venv\Scripts\python.exe'
 $DataRoot = (Resolve-Path '..\data').Path
 $Cfg = 'configs\msa_v1_liguria.yaml'

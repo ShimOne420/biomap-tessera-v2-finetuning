@@ -1,3 +1,5 @@
+> Documento storico archiviato il 10 novembre 2026. Per il workflow attivo leggere [README](../../README.md) e [PIANO_OPERATIVO](../../PIANO_OPERATIVO.md). I comandi seguenti descrivono il vecchio stato del repository.
+
 # Primo run MSA: V2 frozen contro il riferimento V1 Liguria
 
 Questa guida usa il PC universitario Windows e i dati nella cartella sorella `..\data`. Le modifiche si ricevono con `git pull`; i run si eseguono sul PC con RTX 5080. Non servono file sull'SSD del Mac.

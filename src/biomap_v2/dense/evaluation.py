@@ -16,6 +16,7 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+import joblib
 
 from .paired import features
 
@@ -45,6 +46,7 @@ def full_metrics(y, prediction):
         'rmse_pct_of_observed_mean': 100 * rmse / observed_mean if observed_mean else None,
         'mape_pct': float(np.mean(np.abs((prediction[nonzero] - y[nonzero]) / y[nonzero])) * 100) if nonzero.any() else None,
         'mape_n': int(nonzero.sum()),
+        'mape_excluded_zero': int((~nonzero).sum()),
         'r2': float(r2_score(y, prediction)) if len(y) > 1 and np.std(y) > 0 else None,
         'pearson_r': float(np.corrcoef(y, prediction)[0, 1]) if len(y) > 1 and np.std(y) > 0 and np.std(prediction) > 0 else None,
         'negative_prediction_fraction': float(np.mean(prediction < 0)),
@@ -77,7 +79,7 @@ def spatial_blocks(lon, lat, block_m=2000):
     return pd.Series([f'{int(a // block_m)}:{int(b // block_m)}' for a, b in zip(x, y)])
 
 
-def make_estimator(name, histgb_params, ridge_alpha=100.0, seed=20260925):
+def make_estimator(name, histgb_params, ridge_alpha=100.0, seed=20260925, mlp_params=None, xgb_params=None):
     if name == 'DummyMean':
         return DummyRegressor(strategy='mean')
     if name == 'Ridge':
@@ -86,19 +88,35 @@ def make_estimator(name, histgb_params, ridge_alpha=100.0, seed=20260925):
         params = dict(histgb_params or {})
         params.setdefault('random_state', seed)
         return HistGradientBoostingRegressor(**params)
+    if name == 'XGBoost':
+        from xgboost import XGBRegressor
+        params = {'n_estimators': 400, 'max_depth': 2, 'learning_rate': .05,
+                  'objective': 'reg:squarederror', 'random_state': seed, 'n_jobs': 1}
+        params.update(xgb_params or {})
+        return XGBRegressor(**params)
+    if name == 'MLP':
+        from sklearn.neural_network import MLPRegressor
+        params = {'hidden_layer_sizes': (256, 128), 'activation': 'relu', 'solver': 'adam',
+                  'alpha': .0001, 'learning_rate_init': .001, 'max_iter': 500,
+                  'early_stopping': True, 'validation_fraction': .1, 'n_iter_no_change': 20, 'random_state': seed}
+        params.update(mlp_params or {})
+        return make_pipeline(StandardScaler(), MLPRegressor(**params))
     raise ValueError(f'Modello non supportato: {name}')
 
 
-def out_of_fold(frame, which, model_name, folds, histgb_params, ridge_alpha, seed):
+def out_of_fold(frame, which, model_name, folds, histgb_params, ridge_alpha, seed, mlp_params=None, xgb_params=None, model_dir=None):
     target = frame.target.to_numpy(dtype=np.float32)
     matrix = features(frame, which)
     prediction = np.full(len(frame), np.nan, dtype=np.float64)
     for fold in np.unique(folds):
         training = folds != fold
         validation = ~training
-        model = make_estimator(model_name, histgb_params, ridge_alpha, seed)
+        model = make_estimator(model_name, histgb_params, ridge_alpha, seed, mlp_params, xgb_params)
         model.fit(matrix[training], target[training])
         prediction[validation] = model.predict(matrix[validation])
+        if model_dir is not None:
+            Path(model_dir).mkdir(parents=True, exist_ok=True)
+            joblib.dump(model, Path(model_dir)/f'{which}_{model_name}_fold{fold}.joblib')
     if not np.isfinite(prediction).all():
         raise ValueError('Predizioni OOF non complete')
     return prediction
@@ -156,25 +174,37 @@ def decile_table(y, prediction, deciles=10):
 
 
 def benchmark(frame, histgb_params, out, n_splits=5, seed=20260925, ridge_alpha=100.0,
-              n_boot=2000, block_m=2000, models=('DummyMean', 'Ridge', 'HistGB')):
+              n_boot=2000, block_m=2000, models=('DummyMean', 'Ridge', 'HistGB'), mlp_params=None, xgb_params=None):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     target = frame.target.to_numpy(dtype=np.float32)
-    folds = spatial_folds(frame.lon.to_numpy(), frame.lat.to_numpy(), n_splits, seed)
+    folds = (frame.predefined_fold.to_numpy(dtype=np.int64) if 'predefined_fold' in frame
+             else spatial_folds(frame.lon.to_numpy(), frame.lat.to_numpy(), n_splits, seed))
+    if set(folds) != set(range(n_splits)):
+        raise ValueError('Fold predefiniti incompatibili con il numero richiesto')
     frame = frame.copy()
+    if 'aoi_id' not in frame:
+        frame['aoi_id'] = 'liguria_levante'
     frame['fold'] = folds
-    frame[['fold', 'lon', 'lat', 'target']].to_csv(out / 'folds.csv', index=False)
+    frame[['fold', 'aoi_id', 'lon', 'lat', 'target']].to_csv(out / 'folds.csv', index=True)
 
     predictions = []
     overall_rows = []
     fold_rows = []
     for which in ('v1', 'v2'):
         for model_name in models:
-            prediction = out_of_fold(frame, which, model_name, folds, histgb_params, ridge_alpha, seed)
-            record = frame[['lon', 'lat', 'target', 'fold']].copy()
+            print(f'Probing denso: {which} / {model_name} / {n_splits} fold', flush=True)
+            prediction = out_of_fold(frame, which, model_name, folds, histgb_params, ridge_alpha, seed,
+                                     mlp_params, xgb_params, out/'models')
+            record = frame[['aoi_id', 'lon', 'lat', 'target', 'fold', 'n_valid', 'n_total', 'valid_fraction']].copy()
             record['encoder'] = which
             record['model'] = model_name
             record['prediction'] = prediction
+            record['cell_id'] = frame.index
+            record['error'] = prediction-target
+            record['absolute_error'] = np.abs(prediction-target)
+            record['absolute_percentage_error_pct'] = np.divide(np.abs(prediction-target)*100, np.abs(target),
+                out=np.full(len(target), np.nan), where=target != 0)
             predictions.append(record)
             metrics = full_metrics(target, prediction)
             overall_rows.append({'encoder': which, 'model': model_name, **metrics})
@@ -182,7 +212,8 @@ def benchmark(frame, histgb_params, out, n_splits=5, seed=20260925, ridge_alpha=
             for fold in np.unique(folds):
                 part = folds == fold
                 fold_metrics = full_metrics(target[part], prediction[part])
-                fold_rows.append({'encoder': which, 'model': model_name, 'fold': int(fold), **fold_metrics})
+                fold_rows.append({'encoder': which, 'model': model_name, 'fold': int(fold),
+                                  'n_training': int((~part).sum()), **fold_metrics})
                 fold_scores.append(fold_metrics['rmse'])
             overall_rows[-1]['macro_fold_rmse'] = float(np.mean(fold_scores))
     prediction_frame = pd.concat(predictions, ignore_index=True)
@@ -195,6 +226,7 @@ def benchmark(frame, histgb_params, out, n_splits=5, seed=20260925, ridge_alpha=
     metrics_frame['improvement_vs_dummy_rmse'] = [
         1 - row.rmse / dummy.loc[row.encoder, 'rmse'] if dummy.loc[row.encoder, 'rmse'] else None
         for row in metrics_frame.itertuples()]
+    metrics_frame['rmse_gain_vs_dummy_pct'] = metrics_frame.improvement_vs_dummy_rmse*100
     metrics_frame.to_csv(out / 'metrics.csv', index=False)
     fold_frame = pd.DataFrame(fold_rows)
     fold_frame.to_csv(out / 'metrics_by_fold.csv', index=False)

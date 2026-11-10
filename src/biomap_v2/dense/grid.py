@@ -33,6 +33,8 @@ class TargetGrid:
 
 def load_target(path):
     with rasterio.open(path) as dataset:
+        if dataset.crs != rasterio.crs.CRS.from_epsg(4326) or dataset.transform.b != 0 or dataset.transform.d != 0:
+            raise ValueError('Target denso: richiesto EPSG:4326 non ruotato')
         values = dataset.read(1).astype(np.float64)
         transform = dataset.transform
         nodata = dataset.nodata

@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-10",
+  "base_commit": "2ae5ea9f49b0047e0c16f2b9caa3cfbb448e68af",
+  "local_full_suite_before_optional_reference_test": {"passed": 85, "warnings": 775, "seconds": 51.60},
+  "local_dense_portable_suite_before_optional_reference_test": {"passed": 7, "seconds": 20.33},
+  "local_dense_portable_final": {"passed": 8, "warnings": 39, "seconds": 20.44},
+  "real_dense_liguria": {
+    "cells": 4991,
+    "pixels": 3545951,
+    "tiles": 10,
+    "v1_max_abs_mean": 0.0,
+    "v1_n_valid_mismatch": 0,
+    "v1_n_total_mismatch": 0,
+    "v2_max_abs_mean": 6.938893903907228e-18,
+    "v2_n_valid_mismatch": 0,
+    "encoder_spot_pixels": 32,
+    "encoder_spot_max_abs": 2.1457672119140625e-6,
+    "encoder_spot_tolerance": 0.0001,
+    "encoder_spot_device": "cpu"
+  },
+  "new_scientific_probing_executed": false,
+  "new_university_training_started": false,
+  "dense_17_AOI_campaign_complete": false,
+  "current_scope": "Liguria dense paired within-AOI spatial cross-validation",
+  "artifact": {
+    "release_tag": "dense-liguria-20261110",
+    "zip_bytes": 11904407,
+    "zip_sha256": "e437e2122080618988cb38eb2a24cac12b021bed073c2579b287bae08adbe87e"
+  }
+}

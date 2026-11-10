@@ -1,339 +1,171 @@
-# BioMAP — TESSERA V2: probing e fine-tuning MSA/BII
+# BIOMAP-FM — probing TESSERA V2 denso come V1
 
-**E2 Frozen CNN — nuova fase isolata:** leggere [PIANO_OPERATIVO.md](PIANO_OPERATIVO.md)
-per i comandi PowerShell dall'apertura in VS Code fino a CV, refit, Excel e GeoTIFF.
-Il codice è in `src/biomap_ml/`, configurazione `configs/e2_msa.yaml`. Non modificare il
-checkout del probing attivo: usare `biomap-finetuning-dev` sul branch `finetuning-dev`.
-E2 non aggiorna TESSERA; E4/E5 sono i passi successivi, non run già eseguiti.
-Il [report di implementazione](docs/ml/TESSERA_IMPLEMENTATION_HANDOVER.md) spiega ogni
-modulo, le scelte, i controlli e i limiti verificati.
+**Workflow attivo:** encoder V1/V2 congelati → stessa media densa di 128 componenti →
+Dummy, Ridge, HistGB, XGBoost e MLP. Nessun fine-tuning in questa fase.
 
-**Nuovo run MSA comparativo V1/V2 (127.909 sviluppo, 4.991 Liguria, tre fold geografici): [guida Windows dedicata](README_RUN_MSA_V1_V2.md).** Include diagnosi/recupero dei target mancanti dopo lo smoke.
+Il primo pacchetto eseguibile copre **Liguria Levante: 4.991 celle, 3.545.951 pixel densi,
+cinque fold spaziali interni**. Non è la campagna sviluppo→Liguria sulle 127.909 celle:
+gli embedding V2 densi delle 17 AOI di sviluppo non sono ancora completi.
 
-**Preparazione MSA accelerata:** il profilo Liguria tratta ora ogni area come un unico lotto e può lavorare con un processo per area. Su 1.200 celle reali già complete il nuovo motore produce file identici byte per byte; la velocità è limitata dalla banda di rete. Vedere [Preparazione parallela](#preparazione-parallela-per-aree) e il [report dettagliato delle modifiche](REPORT_ACCELERAZIONE_PREPARE_MSA.md). Le serie valide già acquisite vengono conservate; celle, date, punti e protocollo rimangono invariati.
+## Quale documento leggere
 
-Il [report tecnico delle correzioni precedenti](REPORT_CORREZIONI_PREPARAZIONE_MSA.md) e la [guida di diagnosi](PREPARAZIONE_MSA_PRESTAZIONI.md) descrivono la prima versione del motore ottimizzato.
+- Questo README: apertura del progetto, download dati e comandi Windows.
+- [README_MODIFICHE_DENSE.md](README_MODIFICHE_DENSE.md): metodo recuperato e modifiche tecniche.
+- [PIANO_OPERATIVO.md](PIANO_OPERATIVO.md): milestone, controlli e decisioni successive.
+- [BIOMAP_DEVELOPMENT_STATUS.md](BIOMAP_DEVELOPMENT_STATUS.md): stato effettivo e problemi aperti.
+- [Roadmap condivisa](BIOMAP_DEVELOPMENT_ROADMAP.md): riferimento strategico fornito dall'utente.
 
-**Revisione indipendente del 7 novembre:** [analisi del codice aggiornato, criticità riprodotte e strategia futura](REVIEW_ACCELERAZIONE_MSA_2026-11-07.md). L'ETA e il solo stato parallelo `complete` non certificano la validazione finale dell'intero benchmark; la durata di cinque ore non è confermata dalle evidenze disponibili.
+I vecchi README a 25 punti e il piano E2/E4/E5 sono in `docs/archive/` come documentazione
+storica. **E4/E5 sono sospesi dalla nuova roadmap frozen.** Il codice legacy non viene cancellato.
 
-Repository operativo per **Windows nativo, NVIDIA RTX 5080 16 GB, 32 GB RAM**. L'obiettivo è confrontare gli embedding V2 frozen con quelli ottenuti aggiornando i pesi dello student **Medium** (~21 milioni di parametri), per riprodurre **GLOBIO overall MSA 2020** e **NHM BII v2.1.1 2020**.
+## 1. Aggiornare il PC universitario senza perdere modifiche
 
-**Stato:** codice e protocollo implementati; test CPU, parità con l'inferenza ufficiale e controlli delle dipendenze sono descritti in `VALIDATION.md`. La prova CUDA/VRAM effettiva richiede il computer universitario. Nessun risultato di fine-tuning scientifico è già garantito. I test storici sono già osservati e hanno ruolo esplorativo. Umbria nord resta sigillata.
+Eseguire il pull soltanto quando nessun run sta usando il checkout da aggiornare. Se il
+run è ancora attivo, attendere oppure clonare in una cartella separata: non cambiare i
+moduli Python importati dal processo. Non aggiornare il suo ambiente durante il run.
 
-## Come è organizzato
+Aprire PowerShell nel terminale VS Code:
 
-Tre ingressi Python legacy e un setup PowerShell restano compatibili. La nuova fase E2
-usa i comandi `python -m biomap_ml.prepare/train/evaluate/predict`, descritti nel piano
-operativo, così mantiene separate sorgente in sola lettura e cartella di lavoro.
-Ogni nuovo modulo inizia con commenti su scopo, input, output e controlli.
+```powershell
+Set-Location 'C:\Users\brome\Desktop\BIOMAP_TESSERA_V2\biomap-tessera-v2-finetuning'
+git status --short
+git stash list
+```
 
-| Ingresso | Cosa fa |
+L'allegato segnala modifiche universitarie **non committate** e un vecchio README nello
+stash. Non perderle: se ci sono modifiche tracked, prima del pull salvarle localmente:
+
+```powershell
+# Solo se git status mostra modifiche locali; questo salva i file tracked.
+git stash push -m 'backup-university-before-dense-portable'
+```
+
+Se ci sono file di codice nuovi non tracciati, salvarli/committarli su un branch di backup
+prima del pull. Non cancellarli per forzare l'aggiornamento. Non applicare automaticamente
+lo stash sul codice nuovo: XGBoost/MLP/report dinamici sono già integrati. Il vecchio stash
+resta recuperabile tramite `git stash list` e `git stash show -p <nome>`.
+
+```powershell
+git switch main
+git pull --ff-only origin main
+if ($LASTEXITCODE -ne 0) { throw 'Pull non completato: non forzare o cancellare modifiche' }
+code .
+$TaskPython = (Resolve-Path '.\.venv\Scripts\python.exe').Path
+& $TaskPython -m pip install -r requirements-lock.txt
+if ($LASTEXITCODE -ne 0) { throw 'Dipendenze non installate' }
+& $TaskPython -m pip check
+& $TaskPython -m pytest tests\test_dense_benchmark.py tests\test_dense_portable.py -q --disable-warnings
+if ($LASTEXITCODE -ne 0) { throw 'Test falliti: non avviare il benchmark' }
+```
+
+Per un clone nuovo senza `.venv`, usare prima `scripts/setup_windows.ps1` in quella copia
+con `-DataRoot '.\local_data'`; non esegue download delle serie. Per le regressioni dense
+basta CPU. Il controllo del piccolo campione encoder può usare il checkpoint CUDA già disponibile.
+
+## 2. Scaricare i dati del run: non serve l'SSD del Mac
+
+`git pull` porta codice e configurazioni. Il pacchetto dati è un asset della
+[Release dense-liguria-20261110](https://github.com/ShimOne420/biomap-tessera-v2-finetuning/releases/tag/dense-liguria-20261110).
+Il comando seguente lo scarica, verifica dimensione/SHA256 e lo estrae senza sovrascrivere dati:
+
+```powershell
+$TaskBundle = 'F:\dense_liguria_bundle_20261110'
+& $TaskPython scripts\dense_msa.py fetch-bundle --out $TaskBundle
+if ($LASTEXITCODE -ne 0) { throw 'Download o verifica pacchetto falliti' }
+& $TaskPython scripts\dense_msa.py verify-bundle --bundle $TaskBundle
+if ($LASTEXITCODE -ne 0) { throw 'Dati del pacchetto non validi' }
+```
+
+Se F: non è disponibile, scegliere un percorso nuovo su C:. Il download è **11.904.407 byte**,
+non decine di GB. Contiene medie dense V1/V2, target, fold, prove di equivalenza e un campione
+Sentinel di 32 pixel. **Non** contiene tutte le immagini originali né il checkpoint Medium.
+Gli embedding non vengono ricalcolati per ogni regressore.
+
+Se il pacchetto è già presente e verificato, `fetch-bundle` lo riusa. Con un errore di rete
+si ferma: nessuna sequenza infinita di tentativi o fallback al campione a 25 punti.
+
+## 3. Eseguire il probing V1/V2 denso
+
+Il checkpoint universitario è già presente, secondo l'allegato. Adattare solo il suo percorso:
+
+```powershell
+$TaskCkpt = (Resolve-Path '..\data\weights\student_medium.pt').Path
+$TaskOut = Join-Path $PWD ('outputs\dense_benchmark\' + (Get-Date -Format 'yyyyMMddTHHmmss') + '_dense_5reg')
+& $TaskPython scripts\dense_msa.py all `
+  --bundle $TaskBundle --checkpoint $TaskCkpt --device cuda:0 `
+  --folds 5 --bootstrap 2000 --out $TaskOut
+if ($LASTEXITCODE -ne 0) { throw 'Run incompleto: leggere errore e run_state.json' }
+```
+
+**Questo è il comando del run.** Prima dei fit verifica tutti gli hash e ricodifica solo
+il campione di 32 pixel con il Medium locale, confrontandolo con gli embedding originali.
+Poi esegue i regressori su CPU, usando gli stessi fold congelati per V1 e V2.
+
+Se vuoi evitare del tutto la GPU, usa `--device cpu`: cambia il device della verifica del
+campione, non le feature dense. Per il solo training tabellare, dopo aver verificato il
+pacchetto, è disponibile `run --bundle ... --out ...`; il report dichiarerà che in quella
+invocazione non è stato ripetuto il controllo encoder. Il comando consigliato resta `all`.
+
+Non rilanciare `probe_msa.py prepare` per questo benchmark: quello è il percorso a 25 punti.
+Non usare `finetune.py` e non passare i vettori medi alla CNN E2 come se fossero patch.
+
+## 4. Dove trovare e leggere i risultati
+
+```powershell
+Get-Content "$TaskOut\REPORT_V1_V2_DENSE_MSA.md"
+Import-Csv "$TaskOut\metrics.csv" |
+  Select-Object encoder,model,n,mae,rmse,mape_pct,bias,r2,pearson_r,rmse_gain_vs_dummy_pct |
+  Format-Table
+Get-Content "$TaskOut\run_state.json"
+```
+
+| File/cartella | Contenuto |
 |---|---|
-| `scripts/probe_msa.py` | Prepara MSA, calcola embedding frozen o adattati, addestra regressori e valuta |
-| `scripts/probe_bii.py` | Stesso percorso per BII, con griglia/target specifici |
-| `scripts/finetune.py` | Aggiorna encoder e testa; scegli MSA/BII con `--indicator` |
-| `scripts/setup_windows.ps1` | Crea ambiente Python e verifica CUDA |
+| `protocol.json` | Versioni codice/software, hash, regressori, iperparametri e ruolo della valutazione |
+| `folds.csv` | Appartenenza geografica per cella |
+| `predictions.csv` | Cella, coordinate, target, encoder, regressore, predizione, errore e copertura |
+| `metrics.csv`, `metrics_by_fold.csv` | MAE, RMSE, MAPE, bias, R², Pearson, guadagni rispetto al Dummy |
+| `paired_delta.csv` | Differenze V2−V1 e intervalli bootstrap |
+| `models/` | Modello addestrato per ogni encoder/regressore/fold |
+| `scatter_*.png` | Osservato contro predetto per entrambi gli encoder |
+| `risultati.xlsx` | Summary, risultati, fold e valori cella per cella di questa run |
 
-`configs/` contiene YAML commentati, geometrie/split e provenienza. `src/biomap_v2/` contiene funzioni condivise: acquisizione, forward differenziabile, esperimenti e CLI. `tests/` contiene fixture sintetiche esplicitamente separate dai benchmark. La CI è in `.github/workflows/`.
+Il registro comune è `outputs\dense_benchmark\DENSE_MSA_experiment_registry.xlsx`, con una
+riga per encoder/modello/run. Il registro CSV è la fonte ricostruibile. I workbook storici
+dei run a 25 punti non vengono sovrascritti.
 
-## 1. Preparare il computer universitario
-
-Aprire **PowerShell**. Installare Git e Python 3.12 a 64 bit, se assenti; con `winget`:
-
-```powershell
-winget install --id Git.Git -e
-winget install --id Python.Python.3.12 -e
-```
-
-Chiudere e riaprire PowerShell dopo l'installazione. Verificare:
+Se Excel blocca l'aggiornamento, chiuderlo e rigenerare gli Excel **senza ripetere i fit**:
 
 ```powershell
-git --version
-py -3.12 --version
-nvidia-smi
+& $TaskPython scripts\dense_msa.py export --out $TaskOut
 ```
 
-`nvidia-smi` deve elencare la RTX 5080. Se manca o il driver è troppo vecchio per CUDA 12.8, aggiornare il driver NVIDIA con il supporto dell'università. Non serve installare separatamente CUDA Toolkit per usare le wheel PyTorch.
+Un output già usato per il training viene rifiutato. Per un nuovo esperimento scegliere
+un nuovo `$TaskOut`; le vecchie predizioni restano intatte.
 
-Se non hai permessi per installare Git/Python o aggiornare il driver, chiedere all'amministratore queste tre componenti; il setup non aggira le restrizioni del PC.
+## 5. Come interpretare il risultato
 
-## 2. Clonare e scegliere disco interno o SSD
+Per ogni regressore confrontare V1/V2 sulle stesse celle e con lo stesso Dummy. Una
+riduzione RMSE positiva indica vantaggio sul Dummy; delta V2−V1 negativo indica minore
+errore V2. Guardare anche bias, estremi del target e intervalli bootstrap spaziali.
 
-```powershell
-Set-Location ([Environment]::GetFolderPath('Desktop'))
-git clone https://github.com/ShimOne420/biomap-tessera-v2-finetuning.git
-Set-Location biomap-tessera-v2-finetuning
-$DataRoot = Join-Path $env:USERPROFILE 'BioMAP_Data'
+MAPE è relativo al target di ogni cella. MAE 0,1 significa 10 punti della scala MSA,
+non automaticamente un errore relativo del 10%. Il target è modellato da GLOBIO.
+
+La CV ligure usa circa 3.993/3.992 celle di training e 998/999 di valutazione per fold.
+Ogni cella ha una sola predizione OOF. Non c'è un nuovo holdout finale separato e non si
+possono attribuire questi numeri al training storico sulle 17 AOI.
+
+## 6. Preparazione del pacchetto da raw: solo per manutenzione
+
+Questo è il comando già eseguito sul Mac per produrre il pacchetto. Non serve sul PC
+universitario se si usa `fetch-bundle`:
+
+```text
+python scripts/dense_msa.py pack --v1-tiles <tessera/2020> --v2-tiles <AOI_V2>
+  --target <msa_2020_unitless.tif> --v1-parquet <V1.parquet> --v2-parquet <V2.parquet>
+  --out <nuova_cartella_bundle> --folds 5 --pixels 32
 ```
 
-Per usare l'SSD, sostituire **soltanto** la variabile con il percorso effettivo del disco:
-
-```powershell
-$DataRoot = 'E:\BioMAP_Data'
-```
-
-La lettera `E:` è un esempio: controllarla in Esplora file. Repository e ambiente possono restare sul desktop; serie, pesi e run vanno nella data-root. La cache interna è limitata a 50 GiB con almeno 20 GiB liberi. Il limite considera **tutta** la data-root, anche entrambi gli indicatori e i run. Per aumentarlo su SSD usare `--set storage.max_gib=250` in tutti i comandi interessati, dopo aver controllato lo spazio.
-
-## 3. Installare e controllare l'ambiente
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup_windows.ps1 -DataRoot $DataRoot
-$Python = Join-Path $PWD '.venv\Scripts\python.exe'
-& $Python -m pip check
-& $Python scripts\probe_msa.py doctor --data-root $DataRoot
-& $Python scripts\probe_bii.py doctor --data-root $DataRoot
-```
-
-Il setup installa Python package bloccati e **PyTorch 2.10.0 cu128** da indice ufficiale. `doctor` registra piattaforma, driver, GPU, VRAM, RAM su Windows, spazio libero e prova matematica forward/backward in `msa/doctor.json` o `bii/doctor.json`. Verificare che `cuda_available` sia `true` e che la GPU sia quella desiderata.
-
-La sola disponibilità CUDA non prova che l'intero training entri nella VRAM: la prova tecnica dei punti 6–7 serve a misurarlo. Se ci sono più GPU, usare `--device cuda:1` ecc. Non usare memoria GPU condivisa come se fosse VRAM dedicata.
-
-Su Windows, errori XGBoost riguardanti `vcomp140.dll` possono richiedere Microsoft Visual C++ Redistributable x64. Non installare wheel non ufficiali per risolvere incompatibilità della RTX 5080.
-
-## 4. Scaricare i pesi Medium
-
-```powershell
-& $Python scripts\probe_msa.py download-weights --data-root $DataRoot
-```
-
-MSA e BII condividono `$DataRoot\weights\student_medium.pt` (~84 MB). Revisione Hugging Face e SHA256 sono fissati; un hash diverso interrompe il comando. Non si scarica il teacher 2B. Le funzioni di inferenza V1 non sono compatibili con questi pesi.
-
-## 5. Accesso ai dati Sentinel e target
-
-Le geometrie e le partizioni storiche sono già nel repository: **1.000 training, 122 validation e 245 test per ciascun indicatore**. Gli identificativi sono diversi per MSA e BII: stessa numerosità non significa stessi target/supporti.
-
-`prepare` scarica separatamente NHM BII (5 arcmin, percentuale) e GLOBIO MSA (10 arcsec, MSA-area/cell-area), poi serie S2 L2A e S1 RTC del 2020. Il download Sentinel usa punti stratificati e blocchi COG; non scarica un'intera scena o embedding globali. È comunque la fase più lenta: non è un download di soli pesi.
-
-Planetary Computer può richiedere un account/chiave per Sentinel-1 RTC. Consultare la [documentazione di accesso](https://planetarycomputer.microsoft.com/docs/concepts/sas/). Se la lettura è negata con 401/403, impostare la chiave **solo nella sessione PowerShell**, senza inserirla nei YAML o in Git:
-
-```powershell
-$env:PC_SDK_SUBSCRIPTION_KEY = [System.Net.NetworkCredential]::new('', (Read-Host 'Chiave Planetary Computer' -AsSecureString)).Password
-```
-
-In alternativa importare cache già generate con questo progetto. Una vecchia cache Mac non è automaticamente compatibile: unità radar, geometria, anno e manifest devono coincidere. Il preprocessore precedente applicava una conversione da ampiezza; qui l'intensità MPC usa `10*log10(power)`, equivalente alla conversione ufficiale di `sqrt(power)`.
-
-Le impostazioni di default accettano solo il 2020. Per un altro anno servono target corrispondenti: configurare `target.mode=custom`, raster/provenienza/unità, geometrie coerenti e una nuova data-root.
-
-## 6. Prima prova piccola su dati reali
-
-Preparare 12 celle per indicatore, distribuite fra train/validation/test:
-
-```powershell
-& $Python scripts\probe_msa.py prepare --data-root $DataRoot --limit 12
-& $Python scripts\probe_bii.py prepare --data-root $DataRoot --limit 12
-& $Python scripts\probe_msa.py run --data-root $DataRoot --smoke
-& $Python scripts\probe_bii.py run --data-root $DataRoot --smoke
-```
-
-`--limit` vale per `prepare`; salva `cells_smoke.csv`. `--smoke` seleziona quel file nei comandi successivi. Le serie sono annuali anche nello smoke: pochi giorni non rappresenterebbero il protocollo reale. Il limite è 12 celle totali, non 12 per split.
-
-Queste metriche misurano il funzionamento del percorso; **non sono risultati scientifici**. Controllare copertura, assenza di valori non finiti, tempi e memoria. Se un errore rete interrompe `prepare`, rieseguire lo stesso comando: cataloghi, giorni e celle completati vengono verificati e riusati. Dopo il salvataggio verificato delle celle, solo i checkpoint giornalieri e gli eventuali intermedi per cella del vecchio formato vengono rimossi; i dati originali esterni restano intatti.
-
-## 7. Prova tecnica del fine-tuning MSA e BII
-
-```powershell
-& $Python scripts\finetune.py run --indicator msa --data-root $DataRoot --smoke --stage all --set training.epochs=2 --set 'training.seeds=[42]'
-& $Python scripts\finetune.py run --indicator bii --data-root $DataRoot --smoke --stage all --set training.epochs=2 --set 'training.seeds=[42]'
-```
-
-`all` esegue warmup head-only, controllo frozen aggiuntivo e fine-tuning parziale. `phase.json` deve indicare `encoder_changed: false` per il controllo e `true` per il ramo partial. Sono verifiche automatiche, non deduzioni dalla sola loss.
-
-La GPU usa inizialmente quattro celle per microbatch, 16 effettive tramite accumulo e 32 pixel per forward. In caso di CUDA OOM viene ripetuta l'epoca con meno celle, ripristinando pesi, optimizer e RNG. Se non entra una cella, ridurre `model.pixel_batch`, per esempio:
-
-```powershell
-& $Python scripts\finetune.py run --indicator msa --data-root $DataRoot --smoke --stage all --set model.pixel_batch=8 --set training.epochs=2 --set 'training.seeds=[42]'
-```
-
-Modificare `model.pixel_batch` non cambia il campione. Ridurre i pixel campionati cambia invece il protocollo e richiede una nuova preparazione/data-root.
-
-## 8. Preparare il campione completo e fare probing V2
-
-```powershell
-& $Python scripts\probe_msa.py prepare --data-root $DataRoot
-& $Python scripts\probe_bii.py prepare --data-root $DataRoot
-& $Python scripts\probe_msa.py run --data-root $DataRoot
-& $Python scripts\probe_bii.py run --data-root $DataRoot
-```
-
-Senza `--smoke` si usa `cells.csv`. Il numero finale può essere minore di 1.367 se alcune celle non raggiungono la copertura Sentinel richiesta: le esclusioni sono nel manifest e tutte le varianti usano lo stesso insieme eleggibile. Errori rete non vengono convertiti silenziosamente in esclusioni.
-
-Regressori: Dummy Mean sempre presente, Ridge con scaler train-only, HistGradientBoosting e XGBoost. Hyperparametri nel YAML, selezione solo tramite media RMSE dei blocchi geografici di validation. Il test non sceglie il regressore.
-
-### Preparazione parallela per aree
-
-Vale per il profilo `configs/msa_v1_liguria.yaml`, che usa il motore ottimizzato senza cache di blocchi:
-
-```powershell
-& $Python scripts\probe_msa.py prepare --config configs\msa_v1_liguria.yaml --data-root $DataRoot --parallel-aois 4
-```
-
-**Cosa fa:** avvia un processo per area, al massimo 4 insieme, e al termine esegue un `prepare` completo che valida tutte le celle e scrive `cells.csv`. Per riprendere dopo un arresto basta rilanciare lo stesso comando: celle complete e giorni già salvati vengono riusati.
-
-**Come scegliere il numero di processi:** conta la banda. Controllare il collegamento con `Get-NetAdapter`. A 100 Mbps il totale misurato è uguale con 2 o 4 processi e peggiora con 8, quindi 4 è il valore consigliato. Con un collegamento più veloce si può provare a salire; prima conviene misurare per 10-15 minuti:
-
-```powershell
-& $Python scripts\probe_msa.py prepare --config configs\msa_v1_liguria.yaml --data-root $DataRoot --parallel-aois 8 --aois area1,area2,area3,area4,area5,area6,area7,area8 --stop-after-minutes 12
-```
-
-Una prova con `--aois` o `--stop-after-minutes` non esegue la validazione finale. Il valore da confrontare è `blocchi/s`: `stimate` ed `ETA` sono indicativi e `salvate` cresce solo quando un'area ha completato tutti i giorni.
-
-**Dove guardare:** ogni run crea `diagnostics\<timestamp>_parallel`, con un log per area e `parallel_progress.json`.
-
-**Dopo una modifica al motore:** prima di scaricare nuove celle, verificare l'equivalenza con quelle già complete. Il comando le riscarica altrove e fallisce alla prima differenza; usare una `--workdir` breve e fuori dalla data-root:
-
-```powershell
-& $Python scripts\verify_prepare_equivalence.py --config configs\msa_v1_liguria.yaml --data-root $DataRoot --workdir D:\verify --aois abruzzo_gran_sasso,belluno_dolomiti --cells 300
-```
-
-## 9. Fine-tuning progressivo completo della campagna
-
-```powershell
-& $Python scripts\finetune.py run --indicator msa --data-root $DataRoot --stage all
-& $Python scripts\finetune.py run --indicator bii --data-root $DataRoot --stage all
-```
-
-Default: seed 42/43/44, massimo 50 epoche **per fase**, early stopping dopo otto epoche senza miglioramento, testa 128→64→1 (ReLU, sigmoid), MSE e AdamW. Learning rate testa 1e-3, encoder 1e-5.
-
-Il warmup produce una testa iniziale. Da **quello stesso checkpoint**, il controllo head-only continua l'addestramento e il ramo partial sblocca gli ultimi blocchi S1/S2, attention pooling e fusione. I due rami hanno uguale budget massimo di selezione; l'early stopping può interromperli in epoche diverse. Encoder dropout disattivato in entrambi, mantenendo i gradienti nel ramo fine-tuned. Il seed viene fissato per ogni fase.
-
-Per aggiornare **tutti** i pesi, eseguire una campagna esplicita, con warmup e controllo abbinato:
-
-```powershell
-& $Python scripts\finetune.py run --indicator msa --data-root $DataRoot --stage full
-& $Python scripts\finetune.py run --indicator bii --data-root $DataRoot --stage full
-```
-
-Full parte dallo stesso tipo di warmup head-only, non automaticamente dal migliore partial; questa scelta permette il confronto con il controllo a parità di inizializzazione/budget. Valutare full dopo aver verificato partial sulla validation. Non scegliere la strategia dai risultati di test.
-
-## 10. Personalizzare senza modificare gli script
-
-Modificare `configs/msa.yaml` / `configs/bii.yaml`, oppure usare override ripetibili:
-
-```powershell
-& $Python scripts\finetune.py run --indicator bii --data-root $DataRoot --stage partial --set training.encoder_lr=0.000005 --set training.head_lr=0.0005 --set training.unfreeze_blocks=2 --set training.epochs=30
-& $Python scripts\probe_msa.py run --data-root $DataRoot --set probing.ridge_alpha=10 --set 'probing.models=[Ridge,HistGB]'
-```
-
-Le chiavi sconosciute sono rifiutate per evitare errori di battitura. Ogni run salva gli override effettivi in `config.json`. Per cambiare indicatore basta `--indicator msa/bii`; non occorre riscrivere training o loss.
-
-Per cambiare campionamento, usare una radice distinta e lo stesso override sia in `prepare` sia nei run:
-
-```powershell
-$DataRoot49 = 'E:\BioMAP_49pixels'
-& $Python scripts\probe_msa.py prepare --data-root $DataRoot49 --set sampling.pixels_per_cell=49
-& $Python scripts\probe_msa.py run --data-root $DataRoot49 --set sampling.pixels_per_cell=49
-& $Python scripts\finetune.py run --indicator msa --data-root $DataRoot49 --set sampling.pixels_per_cell=49
-```
-
-`pixels_per_cell` deve essere un quadrato. Le soglie di qualità, anno e sampling restano congelati durante un confronto. Le letture COG usano il pixel nativo più vicino per banda: è un protocollo puntuale esplicito, non una parità dimostrata con tutto il mosaicking/resampling spaziale del preprocessore ufficiale. La parità verificata riguarda normalizzazione, binning e forward a parità di array. Non cambiare target/split durante un run.
-
-## 11. Ripresa e importazione da SSD
-
-`prepare` è riprendibile con lo stesso comando. Le serie delle celle hanno checksum e i checkpoint giornalieri sono controllati alla rilettura; una cache corrotta blocca il comando, non viene accettata come valida.
-
-Per cache prodotte da **questo repository**, indicando la loro radice originaria:
-
-```powershell
-& $Python scripts\probe_msa.py prepare --data-root $DataRoot --import-cache 'F:\BioMAP_Data'
-& $Python scripts\probe_bii.py prepare --data-root $DataRoot --import-cache 'F:\BioMAP_Data'
-```
-
-Non estrarre direttamente le vecchie serie Mac nella nuova cache: la vecchia trasformazione S1 e la geometria devono essere prima verificate/adattate. L'import conserva i file originali e verifica protocollo/hash.
-
-Per target già scaricati (non serve riscaricarli):
-
-```powershell
-& $Python scripts\probe_msa.py prepare --data-root $DataRoot --target-raster 'E:\Targets\msa_2020_unitless.tif'
-& $Python scripts\probe_bii.py prepare --data-root $DataRoot --target-raster 'E:\Targets\bii-2020_v2-1-1.tif'
-```
-
-MSA importato deve essere il ratio unitless, BII la percentuale NHM; CRS, risoluzione e centri della griglia vengono verificati. Per dati alternativi impostare anche provenienza/unità nel YAML.
-
-Ogni fase di training salva `last.pt` e `best.pt` insieme all'optimizer e RNG. Per riprendere **la singola fase interrotta**, sostituire il percorso con quello stampato/salvato nel run:
-
-```powershell
-$Interrupted = 'E:\BioMAP_Data\msa\runs\RUN_ID\partial_seed42\last.pt'
-& $Python scripts\finetune.py run --indicator msa --data-root $DataRoot --resume $Interrupted
-```
-
-La ripresa richiede gli stessi override e lo stesso manifest. Un'epoca interrotta viene ripetuta dall'ultimo checkpoint completo. Per uno smoke ripetere anche `--smoke --set training.epochs=2 --set 'training.seeds=[42]'`. Conservare anche `best.pt`; non spostare `last.pt` da solo. La ripresa di una fase non avvia automaticamente gli altri seed o una nuova campagna.
-
-## 12. Valutare, esportare embedding adattati e ripetere il probing
-
-Ogni comando `run` stampa il percorso del run. Sostituire `RUN_ID` con il nome effettivo:
-
-```powershell
-$ProbeRun = 'E:\BioMAP_Data\msa\runs\RUN_ID_PROBE'
-& $Python scripts\probe_msa.py evaluate --data-root $DataRoot --run-dir $ProbeRun
-$FineRun = 'E:\BioMAP_Data\msa\runs\RUN_ID_FINETUNE'
-& $Python scripts\finetune.py evaluate --indicator msa --data-root $DataRoot --run-dir $FineRun
-```
-
-`selection.json` sceglie lo stage dalla RMSE validation media fra seed, poi un checkpoint rappresentativo vicino alla mediana validation dello stage. Non sceglie automaticamente il seed più fortunato. Contiene il checkpoint scelto **sulla validation**. Non scegliere quello con il test migliore. Leggere il percorso automaticamente:
-
-```powershell
-$Selection = Get-Content (Join-Path $FineRun 'selection.json') -Raw | ConvertFrom-Json
-$Best = Join-Path $FineRun $Selection.selected_checkpoint
-& $Python scripts\finetune.py export-embeddings --indicator msa --data-root $DataRoot --checkpoint $Best
-& $Python scripts\probe_msa.py run --data-root $DataRoot --checkpoint $Best
-```
-
-Per BII cambiare `msa` in `bii` e usare il relativo run:
-
-```powershell
-$FineRunBii = 'E:\BioMAP_Data\bii\runs\RUN_ID_FINETUNE'
-$SelectionBii = Get-Content (Join-Path $FineRunBii 'selection.json') -Raw | ConvertFrom-Json
-$BestBii = Join-Path $FineRunBii $SelectionBii.selected_checkpoint
-& $Python scripts\finetune.py export-embeddings --indicator bii --data-root $DataRoot --checkpoint $BestBii
-& $Python scripts\probe_bii.py run --data-root $DataRoot --checkpoint $BestBii
-```
-
-I checkpoint `.pt` e i modelli `.joblib` sono file eseguibili durante il caricamento: usare esclusivamente checkpoint propri o ufficiali verificati. Il progetto non carica file ricevuti da fonti sconosciute.
-
-## 13. Leggere e confrontare i risultati
-
-Sotto `$DataRoot\msa` o `bii`:
-
-- `targets/`: raster e provenienza; `series/`: cataloghi, giorni e serie per cella.
-- `cells.csv` e manifest: target, split, checksum, copertura ed esclusioni congelate.
-- `embeddings_HASH.csv`: 128 medie per cella, con hash del checkpoint e del supporto.
-- `runs/RUN_ID/`: configurazione, provenienza, modelli, `selection.json`, predizioni e report.
-- Fasi fine-tuning: `last.pt`, `best.pt`, `history.csv`, `phase.json` con memoria/tempi e pesi modificati.
-
-`historical_reference.csv` conserva le metriche dei run V1 precedenti con ruolo descrittivo e supporto diverso, senza calcolare delta spacciati per appaiati. `metrics.csv` contiene MAE, RMSE, MAPE, R², Pearson, bias, n ed esclusioni MAPE; nel run completo anche guadagno rispetto al Dummy. `seed_summary.csv` riporta media/deviazione per stage e split. I grafici mostrano target/predizione. Non si garantisce un miglioramento: può emergere parità o peggioramento.
-
-Il primo confronto appaiato è **V2 frozen + stessa testa vs V2 adattato + stessa testa**; il confronto con Ridge/HistGB/XGBoost misura utilità pratica. Gli indicatori sono prodotti modellati, non misure indipendenti di biodiversità in campo.
-
-Per MSA storico V1, il pooling era la media dei pixel validi nella cella nativa; qui è un campionamento stratificato 25 punti. Riportare questa differenza: non attribuire automaticamente ogni scarto a V1/V2. BII storico usava già 5×5, ma copertura e preprocessing possono cambiare. Un confronto V1 rigorosamente appaiato richiede ricalcolare V1 sulle stesse posizioni eleggibili: questo repository fornisce il protocollo e gli split, **non include un nuovo encoder V1**. I vecchi risultati non vengono presentati come equivalenti al nuovo supporto.
-
-## 14. Estendere MSA alle 17 AOI di sviluppo
-
-`configs/msa_17areas.yaml` include tutte le celle geometriche delle 17 aree storiche più Liguria. È una campagna grande, da avviare dopo il pilot e su SSD. Usa un nuovo split fisso: 13 AOI training, quattro validation (Vercelli, Chianti, Sila, Sardegna interna), Liguria test già osservato. Selezione macro-AOI, non replica della precedente CV a cinque fold. Campania ed Emilia conservano soltanto le celle storiche training; i loro vecchi test e buffer sono esclusi dall’addestramento.
-
-```powershell
-$LargeRoot = 'E:\BioMAP_17areas'
-& $Python scripts\probe_msa.py prepare --config configs\msa_17areas.yaml --data-root $LargeRoot --limit 12
-& $Python scripts\probe_msa.py run --config configs\msa_17areas.yaml --data-root $LargeRoot --smoke
-& $Python scripts\probe_msa.py prepare --config configs\msa_17areas.yaml --data-root $LargeRoot
-& $Python scripts\probe_msa.py run --config configs\msa_17areas.yaml --data-root $LargeRoot
-& $Python scripts\finetune.py run --indicator msa --config configs\msa_17areas.yaml --data-root $LargeRoot
-```
-
-Il profilo aumenta il limite a 250 GiB ma **non promette** che tutta la campagna entri: spazio e costo vanno misurati sul pilot. Se manca spazio il comando si ferma conservando dati riutilizzabili. Umbria nord non viene campionata.
-
-## 15. Collaboratori e manutenzione
-
-Sul repository GitHub: **Settings → Collaborators → Add people**, poi inserire gli username dei due colleghi e inviare gli inviti. Pubblico significa leggibile da tutti; la scrittura richiede comunque invito accettato. Non usare GitHub per conservare chiavi o dati soggetti a condizioni separate.
-
-```powershell
-git switch -c experiment/bii-learning-rate
-# Modificare configurazione o codice, poi verificare:
-& $Python -m pytest
-git add configs src scripts tests README.md
-git commit -m "Configure BII fine-tuning experiment"
-git push -u origin experiment/bii-learning-rate
-```
-
-Aprire una pull request. La CI verifica Windows/Linux CPU; non esegue download della campagna né sostituisce il test CUDA. Salvare i run localmente/SSD e condividere metriche e manifest con licenze adeguate.
-
-Riferimenti e licenze: [ATTRIBUTIONS.md](ATTRIBUTIONS.md). Stato dei controlli: [VALIDATION.md](VALIDATION.md).
+Replica il V1 storico, verifica gli stessi pixel e riaggrega V2 senza nuovi download o
+encoding. I comandi raw `check-v1`, `check-v2`, `check-encoder`, `all` restano disponibili.

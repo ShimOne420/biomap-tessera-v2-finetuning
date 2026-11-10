@@ -1,0 +1,12 @@
+{
+  "release": "dense-liguria-20261110",
+  "url": "https://github.com/ShimOne420/biomap-tessera-v2-finetuning/releases/download/dense-liguria-20261110/liguria_dense_bundle_20261110.zip",
+  "zip_sha256": "e437e2122080618988cb38eb2a24cac12b021bed073c2579b287bae08adbe87e",
+  "zip_bytes": 11904407,
+  "manifest_sha256": "75d134e40d748a44e537bb5f8a9bd42dc98f9e5720373bb74f925fe8930e16ea",
+  "n_cells": 4991,
+  "n_pixels": 3545951,
+  "aoi_id": "liguria_levante",
+  "year": 2020,
+  "role": "within_AOI_spatial_OOF_not_17_AOI_transfer"
+}

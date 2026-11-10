@@ -1,10 +1,10 @@
 # Scopo: entrypoint del benchmark denso V1/V2 per GLOBIO MSA.
-# Fasi: check-v1, check-v2, check-encoder, run, all (vedere --help).
+# Fasi: pack -> fetch-bundle -> verify-bundle -> all; comandi raw ancora disponibili.
 # Input: percorsi via flag o variabili BIOMAP_*.
-# Output: outputs/dense_benchmark e reports/REPORT_V1_V2_DENSE_MSA.md.
-# Esempio: python scripts/dense_msa.py all --v1-tiles ... --v2-tiles ... --target ...
-# Risorse: CPU; GPU/MPS solo se mancano embedding V2 da completare.
-# Ripresa: embedding V2 con memmap e progresso atomico per tile.
+# Output: nuova cartella in outputs/dense_benchmark, report del run, CSV e Excel.
+# Esempio: python scripts/dense_msa.py all --bundle F:\dense_liguria --checkpoint ... --out ...
+# Risorse: regressori CPU; GPU facoltativa per la sola verifica del campione encoder.
+# Ripresa: dati/feature dense riusati, export rigenera Excel senza ripetere training.
 import os
 import sys
 from pathlib import Path

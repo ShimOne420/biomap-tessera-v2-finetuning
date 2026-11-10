@@ -62,15 +62,19 @@ def aggregate_v2(v2_root, n_total=None, min_valid_fraction=0.8, include_std=Fals
         embeddings = np.load(tile['embeddings'], mmap_mode='r')
         if embeddings.shape != (len(cells), dimensions):
             raise ValueError(f"{tile['name']}: embedding {embeddings.shape} diversi da geometry {len(cells)}")
-        # I pixel sono gia' filtrati sui soli supporti V1 con scala finita.
-        finite = np.isfinite(embeddings).all(axis=1)
-        if not finite.all():
-            raise ValueError(f"{tile['name']}: {int((~finite).sum())} embedding non finiti")
-        values = np.asarray(embeddings, dtype=np.float64)
-        np.add.at(sums, cells, values)
-        if include_std:
-            np.add.at(squares, cells, np.square(values))
-        counts += np.bincount(cells, minlength=n_cells)
+        # Riduce la RAM: converte in float64 solo il chunk corrente, non l'intera tile.
+        if (cells < 0).any():
+            raise ValueError(f"{tile['name']}: cell_id negativo")
+        for start in range(0, len(cells), CHUNK_PIXELS):
+            stop = min(start+CHUNK_PIXELS, len(cells))
+            values = np.asarray(embeddings[start:stop], dtype=np.float64)
+            if not np.isfinite(values).all():
+                raise ValueError(f"{tile['name']}: embedding non finiti")
+            selected = cells[start:stop]
+            np.add.at(sums, selected, values)
+            if include_std:
+                np.add.at(squares, selected, np.square(values))
+            counts += np.bincount(selected, minlength=n_cells)
     mean = np.divide(sums, np.maximum(counts[:, None], 1),
                      out=np.full_like(sums, np.nan), where=counts[:, None] > 0)
     records = {'cell_id': np.arange(n_cells), 'n_valid_v2': counts}

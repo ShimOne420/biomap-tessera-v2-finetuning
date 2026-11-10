@@ -73,7 +73,7 @@ Prerequisiti: ambiente già configurato e la stessa `..\data` del comando preced
 & $Python scripts\probe_msa.py prepare --config $Cfg --data-root $DataRoot
 ```
 
-È lo stesso comando già usato: ora il YAML seleziona il motore ottimizzato. Riusa pesi/target/cataloghi e **verifica e conserva le serie già complete**, senza riscriverle. Il download dei pesi non è necessario per `prepare`. Per i comandi di download espliciti e il probing successivo vedere [la guida del run](README_RUN_MSA_V1_V2.md).
+È lo stesso comando già usato: ora il YAML seleziona il motore ottimizzato. Riusa pesi/target/cataloghi e **verifica e conserva le serie già complete**, senza riscriverle. Il download dei pesi non è necessario per `prepare`. Per i comandi storici a 25 punti vedere [la guida archiviata](docs/archive/README_RUN_MSA_V1_V2_25POINTS.md); per il probing denso corrente vedere il [README](README.md).
 
 Output: `..\data\msa_v1_liguria\series`, `cells.csv` al completamento e report sotto `diagnostics`. A ogni heartbeat compare una riga simile a:
 

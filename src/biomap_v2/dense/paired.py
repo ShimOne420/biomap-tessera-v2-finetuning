@@ -12,6 +12,8 @@ from .v1_support import DIMS
 
 
 def pair_features(v1, v2):
+    if v1.index.duplicated().any() or v2.index.duplicated().any():
+        raise ValueError('Identificativi cella duplicati')
     if 'n_valid' not in v1:
         raise ValueError('V1 priva di n_valid')
     v2_count = 'n_valid_v2' if 'n_valid_v2' in v2 else ('n_valid' if 'n_valid' in v2 else None)
@@ -20,8 +22,13 @@ def pair_features(v1, v2):
     common = v1.index.intersection(v2.index)
     if not len(common):
         raise ValueError('Nessuna cella comune fra V1 e V2')
+    if len(common) != len(v1) or len(common) != len(v2):
+        raise ValueError('Copertura V1/V2 diversa: nessuna riduzione silenziosa delle celle')
     left = v1.loc[common]
     right = v2.loc[common]
+    for column in ['lon', 'lat', 'msa_overall']:
+        if column in right and not np.allclose(left[column], right[column], atol=1e-8, rtol=0):
+            raise ValueError('Geometria o target V1/V2 diversi: '+column)
     mismatch = left.n_valid.to_numpy(dtype=np.int64) != right[v2_count].to_numpy(dtype=np.int64)
     if mismatch.any():
         raise ValueError(f'{int(mismatch.sum())} celle con supporto pixel V1/V2 diverso')

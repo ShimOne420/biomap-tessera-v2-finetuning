@@ -53,7 +53,7 @@ La condivisione dei cataloghi STAC **era già presente** nel profilo Liguria: no
 | [`src/biomap_v2/common.py`](src/biomap_v2/common.py) | Valori predefiniti e validazione dei parametri I/O |
 | [`configs/msa_v1_liguria.yaml`](configs/msa_v1_liguria.yaml) | Attivazione del motore ottimizzato e parametri commentati |
 | [`tests/test_preparation_performance.py`](tests/test_preparation_performance.py) | Venti casi di test aggiuntivi, comprese le parametrizzazioni |
-| [`README.md`](README.md), [`README_RUN_MSA_V1_V2.md`](README_RUN_MSA_V1_V2.md) | Collegamenti, istruzioni di aggiornamento/ripresa e descrizione della nuova preparazione |
+| [`README.md`](README.md), [guida storica a 25 punti](docs/archive/README_RUN_MSA_V1_V2_25POINTS.md) | Collegamenti, istruzioni di aggiornamento/ripresa e descrizione della preparazione storica |
 | [`PREPARAZIONE_MSA_PRESTAZIONI.md`](PREPARAZIONE_MSA_PRESTAZIONI.md) | Guida operativa con diagnosi, rischi, comandi e interpretazione dei report |
 | [`VALIDATION.md`](VALIDATION.md) | Evidenze dei test e verifiche ancora necessarie |
 

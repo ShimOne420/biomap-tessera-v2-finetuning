@@ -1,0 +1,51 @@
+# Esperimento B isolato: V1.0 vultr frozen, mappe native; nessun riferimento a output V2.
+data:
+  year: 2020
+  channels: 128
+  source_version: '1.0'
+  source_variant: vultr
+  source_url: https://data.source.coop/tessera/tessera/npy/v1
+  landmask_url: https://data.source.coop/tessera/tessera/landmasks/v1
+  # Radice con <aoi>/tessera/2020; null usa i download privati nella work-root.
+  v1_root: null
+  # Reference del dense_campaign esistente (sola lettura), oppure CSV cell_id,target.
+  reference: null
+  targets_csv: null
+  min_valid_fraction: 0.8
+  max_patch_side: 64  # solo suddivisione di finestre grandi, mai resizing
+  allow_partial_cells: false
+  source_mmap_limit: 8
+sampling:
+  # Scelta geografica deterministica, senza consultare target o metriche.
+  pilot_per_aoi: 50
+  pilot_liguria: 150
+  intermediate_per_aoi: 500
+  intermediate_liguria: 1500
+storage:
+  max_gib: 60
+  reserve_gib: 20
+model:
+  conv_channels: [64, 32]
+  hidden: 64
+  dropout: 0.1
+  pooling: mean  # mean pesata sui pixel; max è una variante esplicita
+  output: linear  # niente clipping; sigmoid è alternativa da scegliere solo sulla CV
+training:
+  seed: 42
+  device: cuda:0
+  batch_cells: 16
+  epochs: 150
+  patience: 15
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  clip_grad: 1.0
+  num_workers: 0  # Windows: iniziare senza processi DataLoader aggiuntivi
+  mixed_precision: false
+  models: [mean_histgb, mean_mlp, spatial_cnn]
+  histgb:
+    max_iter: 90
+    max_leaf_nodes: 15
+    learning_rate: 0.05
+    l2_regularization: 1.0
+    early_stopping: true
+    random_state: 20260925

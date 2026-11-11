@@ -3,6 +3,7 @@ import json
 import time
 import os
 import warnings
+import io
 from contextlib import contextmanager
 from pathlib import Path
 from datetime import datetime, timezone
@@ -11,7 +12,8 @@ from datetime import datetime, timezone
 @contextmanager
 def shared_open(path):
     if os.name!='nt':
-        with open(path,encoding='utf-8') as handle:yield handle
+        with open(path,encoding='utf-8') as handle:snapshot=handle.read()
+        with io.StringIO(snapshot) as buffered:yield buffered
         return
     import ctypes,msvcrt
     from ctypes import wintypes
@@ -23,7 +25,9 @@ def shared_open(path):
     try:fd=msvcrt.open_osfhandle(raw,os.O_RDONLY|os.O_BINARY)
     except BaseException:
         kernel.CloseHandle.argtypes=[wintypes.HANDLE];kernel.CloseHandle(raw);raise
-    with os.fdopen(fd,'r',encoding='utf-8') as handle:yield handle
+    with os.fdopen(fd,'r',encoding='utf-8') as handle:snapshot=handle.read()
+    # MoveFileEx può ancora rifiutare un target aperto: il consumer non trattiene l'handle.
+    with io.StringIO(snapshot) as buffered:yield buffered
 
 
 class Progress:

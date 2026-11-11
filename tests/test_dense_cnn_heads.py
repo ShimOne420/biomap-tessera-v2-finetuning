@@ -109,7 +109,7 @@ def test_marker_method_required(tmp_path):
     proof['method']='different-producer';save_json(marker,proof)
     with pytest.raises(ValueError,match='method'):load(source,'cpu',tmp_path/'out2')
 
-# Su Windows questo test mantiene aperto il lettore DURANTE l'atomic replace.
+# Il consumer mantiene aperta la snapshot durante replace; l'handle OS è già chiuso.
 def test_progress_reader_allows_replace(tmp_path):
     from biomap_dense_heads.progress import shared_open
     p=Progress(tmp_path);p.update(state='running')

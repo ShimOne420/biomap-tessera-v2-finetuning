@@ -85,7 +85,7 @@ $Run = 'F:\biomap_v2_dense_cnn_run01'
 
 Mostra stato/fase/modello, fold, fit completati/26, epoca, celle elaborate, ETA epoca/fit e campagna. Le ETA sul budget massimo sono estrapolazioni dalle epoche misurate, non limiti garantiti: architetture, baseline CPU, export ed early stopping cambiano la durata. Prima delle prime misure compare “non disponibile”. Durante fit sklearn senza callback un aggiornamento vecchio non dimostra blocco. Nella fase export non resta training, ma Excel/grafici possono richiedere tempo.
 
-Su Windows il lettore usa FILE_SHARE_DELETE, e il writer ha retry limitati: leggere il progresso non deve impedire l’atomic replace o terminare il training. Il monitor legge solo il progress.json del NUOVO output, mai stream_progress.json/stream_status.json/stream_log.jsonl/stream_errors.jsonl della campagna attiva, non l'estrazione e non la GPU. Ctrl+C qui ferma solo il monitor. Termina automaticamente su complete/failed/interrupted. `--once` produce una sola fotografia dello stato.
+Su Windows il lettore richiede FILE_SHARE_DELETE e chiude subito il file dopo una copia in memoria, prima di decodificare JSON; il writer ha retry limitati: leggere il progresso non deve impedire l’atomic replace o terminare il training. Il monitor legge solo il progress.json del NUOVO output, mai stream_progress.json/stream_status.json/stream_log.jsonl/stream_errors.jsonl della campagna attiva, non l'estrazione e non la GPU. Ctrl+C qui ferma solo il monitor. Termina automaticamente su complete/failed/interrupted. `--once` produce una sola fotografia dello stato.
 
 ## 6. Dove leggere risultati e recuperare un blocco Excel
 

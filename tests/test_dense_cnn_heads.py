@@ -117,3 +117,10 @@ def test_progress_reader_allows_replace(tmp_path):
         p.update(state='complete')
         assert json.load(reader)['state']=='running'
     assert json.loads(p.path.read_text())['state']=='complete'
+
+# Se estrazione incompleta, nemmeno una query CUDA può interferire con la GPU attiva.
+def test_incomplete_does_not_initialize_cuda(tmp_path,monkeypatch):
+    source=tmp_path/'active';source.mkdir()
+    def forbidden():raise AssertionError('GPU queried before completion')
+    monkeypatch.setattr(torch.cuda,'is_available',forbidden)
+    with pytest.raises(ValueError,match='manca'):load(source,'cuda:0',tmp_path/'out')

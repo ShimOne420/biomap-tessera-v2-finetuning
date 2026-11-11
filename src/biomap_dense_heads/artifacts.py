@@ -13,11 +13,7 @@ def load(source,device,out,features=None,completion=None,targets=None,smoke=Fals
     source=Path(source).resolve();out=Path(out).resolve()
     if out==source or source in out.parents or out in source.parents:
         raise ValueError('Output e sorgente devono essere cartelle separate, non annidate')
-    if device.startswith('cuda') and not torch.cuda.is_available():raise ValueError('CUDA non disponibile')
-    if device.startswith('mps') and not torch.backends.mps.is_available():raise ValueError('MPS non disponibile')
-    torch.device(device) # sintassi verificata prima di creare output
-    if device.startswith('cuda'):
-        probe=torch.ones((4,4),device=device);assert float((probe@probe)[0,0])==4.;del probe
+    torch.device(device) # sola sintassi; nessuna inizializzazione della GPU
     path=Path(features).resolve() if features else source/'v2.parquet'
     marker=Path(completion).resolve() if completion else source/'extraction_complete.json'
     if not marker.is_file():raise ValueError(f'Estrazione non confermata completa: manca {marker}')
@@ -58,6 +54,11 @@ def load(source,device,out,features=None,completion=None,targets=None,smoke=Fals
     if set(dev.cv_fold)!={0,1,2} or not dev.groupby('aoi_id').cv_fold.nunique().eq(1).all():raise ValueError('Fold AOI non validi')
     if set(dev.aoi_id)&set(test.aoi_id) or not test.cv_fold.eq(-1).all():raise ValueError('Leakage sviluppo/test')
     if len(frame)!=proof.get('n_cells') or digest(path)!=feature_sha or digest(marker)!=marker_sha:raise ValueError('Artifact incompleto o modificato durante il preflight')
+    # La GPU si controlla SOLO dopo che l'estrazione è confermata completa e valida.
+    if device.startswith('cuda'):
+        if not torch.cuda.is_available():raise ValueError('CUDA non disponibile')
+        probe=torch.ones((4,4),device=device);assert float((probe@probe)[0,0])==4.;del probe
+    if device.startswith('mps') and not torch.backends.mps.is_available():raise ValueError('MPS non disponibile')
     out.mkdir(parents=True,exist_ok=True)
     report={'status':'ready_smoke' if smoke else 'ready','n_development':len(dev),'n_test':len(test),
         'development_aois':dev.aoi_id.nunique(),'shape':[len(frame),128],'representation':'mean channels; no spatial layout',

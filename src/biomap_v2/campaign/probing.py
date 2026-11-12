@@ -109,3 +109,6 @@ def compare(work):
             for metric in ['mae','rmse','mape_pct','bias','r2','pearson_r']:
                 x,y=a[metric],b[metric];rows.append({'model':model,'partition':part,'aoi_id':aoi,'metric':metric,'v1':x,'v2':y,'delta':None if x is None or y is None else y-x,'delta_pct':None if not x or y is None else 100*(y-x)/abs(x)})
     pd.DataFrame(rows).to_csv(work/'comparison_v1_v2_dense_127909.csv',index=False)
+    # Intervalli bootstrap appaiati (AOI / blocchi 2 km) e riproduzione del V1 storico: vedi uncertainty.py.
+    from .uncertainty import paired_uncertainty, historical_v1_check
+    paired_uncertainty(work);historical_v1_check(work)

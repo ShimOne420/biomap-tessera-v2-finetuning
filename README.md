@@ -1,3 +1,9 @@
+# Aggiornamento: campagna densa 127.909 interamente dal PC (branch dense-public-pc)
+
+Percorso senza artefatti del Mac: tile V1 GeoTESSERA 1.0/vultr pubbliche, `build-reference`, V2
+Medium in streaming con le regole di input storiche, verificate al bit. Leggere
+[docs/ml/DENSE_127909_PC_RUNBOOK.md](docs/ml/DENSE_127909_PC_RUNBOOK.md).
+
 # Aggiornamento: campagna densa 127.909
 
 La nuova CLI è `scripts/dense_campaign.py`, disponibile su `main` (PR #2 integrata). [Runbook universitario](docs/ml/DENSE_127909_UNIVERSITY_RUNBOOK.md) e [audit con blocchi reali](docs/ml/DENSE_127909_AUDIT.md). Non esegue training o acquisizioni automaticamente. Il reference multi-AOI è ancora bloccato da target storici iCloud non leggibili; non confondere codice implementato con dati pronti. Nessuna nuova metrica scientifica prodotta.

@@ -1,4 +1,6 @@
 # Scopo: facciata multi-AOI; audit e preflight precedono acquisizione ed estrazione.
+# Percorso PC-only (dati pubblici): build-reference -> verify-legacy-sample -> stream -> probe v1/v2 -> evaluate-liguria
+#   -> compare -> export. Vedere public_reference.py, streaming.py, legacy_check.py e docs/ml/DENSE_127909_PC_RUNBOOK.md.
 # Tutti i lock, cataloghi e output sono nella work-root; sorgente e reference sono read-only.
 import argparse
 import json
@@ -18,7 +20,7 @@ from .reporting import export
 # Esplicite le fasi che fanno rete: prepare e fetch-reference, mai all.
 def parser():
     p=argparse.ArgumentParser(description='Campagna dense127909: 17 AOI frozen + Liguria separata')
-    p.add_argument('command',choices=['pack-reference','audit','validate','prepare','profile','extract','probe','compare','evaluate-liguria','export','all'])
+    p.add_argument('command',choices=['pack-reference','build-reference','audit','validate','prepare','profile','extract','stream','verify-legacy-sample','probe','compare','evaluate-liguria','export','all'])
     p.add_argument('--reference',required=True);p.add_argument('--work-root',required=True)
     p.add_argument('--source-root',default='missing_source');p.add_argument('--project')
     p.add_argument('--v1-root');p.add_argument('--checkpoint');p.add_argument('--device',default='cpu')
@@ -27,6 +29,13 @@ def parser():
     p.add_argument('--aoi',nargs='+');p.add_argument('--seed',type=int,default=20260925)
     p.add_argument('--encoder',choices=['v1','v2'],default='v2')
     p.add_argument('--reserve-gib',type=float,default=20);p.add_argument('--resume',action='store_true',help='Cache verificate riusate anche di default')
+    # Percorso PC-only: reference da dati pubblici (build-reference) e V2 in streaming (stream).
+    p.add_argument('--msa-area',help='GLOBIO msa_area_10sec.tif (build-reference)')
+    p.add_argument('--cellarea',help='GLOBIO cellarea_km2_10sec.tif (build-reference)')
+    p.add_argument('--liguria-bundle',help='Pacchetto denso ligure storico per le verifiche V1/V2')
+    p.add_argument('--io-threads',type=int,default=8,help='Giorni Sentinel letti in parallelo (stream)')
+    p.add_argument('--max-tiles',type=int,help='Ferma dopo N tile nuove: solo prove, non campagna completa')
+    p.add_argument('--keep-pixel-embeddings',action='store_true',help='Conserva gli embedding V2 per pixel (~50 GB)')
     return p
 
 # Dimensione e stato, non semplicemente presenza di un .lock o del memmap.
@@ -82,7 +91,11 @@ def prepare(args,spec):
 # Ogni invocazione registra revisione e argomenti effettivi; il lock protegge la work-root.
 def main(argv=None):
     args=parser().parse_args(argv)
-    if min(args.chunk_size,args.pixel_batch,args.profile_chunks)<1:raise ValueError('Batch e chunk devono essere positivi')
+    if min(args.chunk_size,args.pixel_batch,args.profile_chunks,args.io_threads)<1:raise ValueError('Batch, chunk e thread devono essere positivi')
+    if args.command=='build-reference':
+        if not (args.v1_root and args.msa_area and args.cellarea):raise ValueError('--v1-root, --msa-area e --cellarea richiesti')
+        from .public_reference import build
+        return print(build(args))
     if args.command=='pack-reference':
         if not args.project or not args.v1_root:raise ValueError('--project e --v1-root richiesti')
         return print(pack(args.project,args.source_root,args.reference,args.v1_root))
@@ -105,6 +118,12 @@ def main(argv=None):
         elif args.command=='prepare':prepare(args,spec)
         elif args.command=='profile':extract(args,spec,frame,profile=True)
         elif args.command=='extract':extract(args,spec,frame)
+        elif args.command=='stream':
+            from .streaming import stream
+            stream(args,spec,frame)
+        elif args.command=='verify-legacy-sample':
+            from .legacy_check import verify_legacy_sample
+            print(json.dumps(verify_legacy_sample(args,spec,frame),indent=2))
         elif args.command=='probe':
             if args.aoi:raise ValueError('Probing completo: vietato filtro AOI')
             probe(args,frame)

@@ -40,12 +40,12 @@ Nessuna di queste azioni è stata eseguita.
 | Disattivare "Energy Efficient Ethernet" (oggi attivo con massimo 1 Gbps) | a volte migliora la negoziazione | breve caduta del link al cambio |
 | Gestione energetica GPU | nessun effetto atteso: la GPU è quasi sempre ferma in attesa della rete | — |
 
-## 5. Monitoraggio sicuro (già disponibile)
-- `scripts\watch_v2_dense_eta.ps1` apre `stream_progress.json` con `FileShare.ReadWrite|Delete` e lo chiude subito, ogni 60 s o più: non può impedire `os.replace`.
-- **Da evitare:**
-  - `Get-Content` in ciclo su quel file, che apre senza condivisione Delete ed è la causa probabile dei due arresti;
-  - il file tenuto aperto in un editor.
-- `scripts\audit_dense_log.py` legge `stream_log.jsonl` nello stesso modo.
+## 5. Monitoraggio sicuro (CORRETTO il 12/11/2026)
+- **Errore precedente:** avevo indicato `watch_v2_dense_eta.ps1` come sicuro perché apriva `stream_progress.json` con condivisione Delete. Una prova del 12/11 ha mostrato che **non basta**: `os.replace` fallisce con "Accesso negato" anche con quella condivisione.
+- Quel monitor è la causa probabile del terzo arresto, il 12/11 alle 12:35. Lo script di ripresa ha rilanciato il run dopo 60 s.
+- **Monitor sicuro:** `scripts\watch_v2_dense_safe.ps1` **non apre mai** `stream_progress.json`. Ricava l'avanzamento dall'elenco dei `tile.json`, dai blocchi codificati in `tmp` (solo nomi dei file) e da `stream_log.jsonl`, un file a sola aggiunta che non viene mai sostituito.
+- **Da evitare sempre:** qualsiasi lettura di `stream_progress.json` (`Get-Content`, editor, vecchio monitor) mentre la r1 gira.
+- `scripts\audit_dense_log.py`, `verify_r1_resume.py`, `compare-tiles` e `stop_r1_after_tile.ps1` leggono solo file mai sostituiti.
 
 ## Raccomandazione
 1. **Subito, senza rischi:** sospensione disattivata. Lo script di ripresa è già attivo. Nessun monitor aggressivo.

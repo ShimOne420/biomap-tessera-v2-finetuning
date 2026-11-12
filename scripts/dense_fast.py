@@ -76,7 +76,25 @@ def parser():
     return p
 
 
+def _timings(work, names):
+    # Tempi per tile dal log della work-root (r1: acquire+encode; r2: tempo del lotto + codifica).
+    from biomap_v2.dense_fast.shared_read import read_text
+    log, out = Path(work) / 'stream_log.jsonl', {}
+    if not log.exists():
+        return out
+    for line in read_text(log).splitlines():
+        if line.strip():
+            e = json.loads(line)
+            name = f"{e['aoi_id']}/{e['tile']}"
+            if name in names:
+                out[name] = {k: e[k] for k in ('acquire_seconds', 'encode_seconds', 'batch', 'batch_acquire_wall_seconds')
+                             if k in e}
+    return out
+
+
 def compare_tiles(left, right, tiles=None):
+    # Sola lettura con condivisione completa: si può usare con la produzione ancora attiva.
+    from biomap_v2.dense_fast.shared_read import load_npz
     left, right = Path(left), Path(right)
     names = sorted(p.parent.relative_to(left / 'chunks').as_posix() for p in (left / 'chunks').glob('*/*/tile.npz'))
     if tiles:
@@ -84,21 +102,24 @@ def compare_tiles(left, right, tiles=None):
     report = []
     for name in names:
         other = right / 'chunks' / name / 'tile.npz'
-        if not other.exists():
+        if not other.exists() or not (left / 'chunks' / name / 'tile.json').exists():
             continue
-        with np.load(left / 'chunks' / name / 'tile.npz') as a, np.load(other) as b:
-            same_cells = np.array_equal(a['cell'], b['cell'])
-            row = {'tile': name, 'cells': int(len(a['cell'])), 'cell_equal': same_cells,
-                   'counts_equal': same_cells and np.array_equal(a['counts'], b['counts']),
-                   'sums_bitwise_equal': same_cells and np.array_equal(a['sums'], b['sums'])}
-            if same_cells and not row['sums_bitwise_equal']:
-                row['sums_max_abs_diff'] = float(np.abs(a['sums'] - b['sums']).max())
-                row['mean_max_abs_diff'] = float(np.abs(a['sums'] / a['counts'][:, None]
-                                                        - b['sums'] / b['counts'][:, None]).max())
-            report.append(row)
+        a, b = load_npz(left / 'chunks' / name / 'tile.npz'), load_npz(other)
+        same_cells = np.array_equal(a['cell'], b['cell'])
+        row = {'tile': name, 'cells': int(len(a['cell'])), 'cell_equal': same_cells,
+               'counts_equal': same_cells and np.array_equal(a['counts'], b['counts']),
+               'sums_bitwise_equal': same_cells and np.array_equal(a['sums'], b['sums'])}
+        if same_cells and not row['sums_bitwise_equal']:
+            row['sums_max_abs_diff'] = float(np.abs(a['sums'] - b['sums']).max())
+            row['mean_max_abs_diff'] = float(np.abs(a['sums'] / a['counts'][:, None]
+                                                    - b['sums'] / b['counts'][:, None]).max())
+        report.append(row)
+    compared = {r['tile'] for r in report}
+    sessions = right / 'stream_sessions.jsonl'
     return {'left': str(left), 'right': str(right), 'compared': len(report),
             'all_bitwise_equal': bool(report) and all(r['sums_bitwise_equal'] and r['counts_equal'] for r in report),
-            'tiles': report}
+            'tiles': report, 'left_timings': _timings(left, compared), 'right_timings': _timings(right, compared),
+            'right_sessions': [json.loads(x) for x in sessions.read_text().splitlines() if x.strip()] if sessions.exists() else []}
 
 
 def legacy_bench(args, spec, frame, root, plan):

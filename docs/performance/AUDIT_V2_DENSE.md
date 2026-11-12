@@ -47,7 +47,10 @@ Su tutta la campagna, 125 tile su 273 hanno meno di 100.000 pixel. Insieme conte
 5. **Parallelismo a fasi.** S2, S1 ascendente e S1 discendente vengono elaborati uno dopo l'altro; alla fine di ogni fase il pool aspetta il giorno più lento. Dentro un giorno scene e bande vanno in sequenza.
 6. **Contesa sul GIL di Python, non calcolo vero.** I 600–870 s di `coordinate_transform` sono tempo trascorso dai thread ad aspettarsi: `rowcol` costa realmente 0,5 s per 2 milioni di punti (M). La versione r2 lo porta a 0,12 s.
 7. **Codifica FP32 a 0,327 ms/pixel**, circa 7,3 h per la parte rimanente (E). Il protocollo vieta l'AMP. Batch più grandi cambierebbero l'equivalenza bit per bit: non toccati.
-8. **Fragilità operativa.** `common.save_json` non ritenta `os.replace`. L'11/11/2026 una lettura concorrente di `stream_progress.json` (con `Get-Content`, che apre il file senza condivisione Delete) ha fatto uscire il run due volte. La seconda volta il run è rimasto fermo circa 14,5 h (M). Ora è attivo lo script di ripresa `run_v2_dense_stream.ps1` (processo 16748), che rilancia il run dopo un'uscita.
+8. **Fragilità operativa.**
+   - `common.save_json` non ritenta `os.replace`. Qualsiasi lettura concorrente di `stream_progress.json` fa uscire il run, anche con condivisione Delete (verificato il 12/11). Arresti avvenuti l'11/11 alle 14:06 e alle 20:09 e il 12/11 alle 12:35 (M).
+   - **Il fermo di circa 14,5 h dell'11/11 è dovuto a Windows Update** (M, registro eventi): riavvio forzato alle 20:30 per KB5132061, tre riavvii tra 20:30 e 20:33, subito dopo la fine delle ore attive (8–20). Lo script di ripresa non sopravvive a un riavvio.
+   - Lo script di ripresa `run_v2_dense_stream.ps1` (processo 16748) è attivo e rilancia il run dopo un'uscita. Il 12/11 alle 12:37 l'ha fatto in 60 s.
 
 ## Cosa non è stato misurato
 - **Tempo e byte delle sole bande S2 nella campagna reale:** non passano dal profilo del lettore. Si possono ricavare solo dal benchmark simulato o da una prova reale da approvare.

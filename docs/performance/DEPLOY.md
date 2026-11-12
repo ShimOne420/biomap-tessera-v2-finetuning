@@ -45,7 +45,7 @@ Un'identità diversa (codice cambiato) produce un errore esplicito `Cache incomp
 
 ## 6. Monitoraggio (solo lettura)
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\watch_v2_dense_eta.ps1 -WorkRoot F:\dense_fast_run
+powershell -ExecutionPolicy Bypass -File scripts\watch_v2_dense_safe.ps1 -WorkRoot F:\dense_fast_run
 & $py scripts\audit_dense_log.py --log F:\dense_fast_run\stream_log.jsonl
 ```
 Nella r2 il log ha una riga per tile e `stream_batches.jsonl` una riga per lotto, con il tempo reale di acquisizione e le statistiche degli handle.

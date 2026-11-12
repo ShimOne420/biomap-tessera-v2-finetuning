@@ -3,6 +3,7 @@
 #   tile, per fascia di dimensione, costo fisso stimato, frazione di GPU ferma, latenze di lettura remota.
 # COME VIENE RICHIAMATO
 #   python scripts\audit_dense_log.py --log F:\biomap_dense_public\work\stream_log.jsonl [--json out.json]
+#       [--since 2026-11-12T15:00:00]   (solo tile finite dopo quell'istante UTC: per confrontare prima/dopo)
 #   (--json scrive SOLO nel percorso indicato, che non deve stare nella work-root di produzione)
 # LOGICA IN ORDINE
 #   1. Apre il log con condivisione Read|Write|Delete (Windows) e lo chiude subito: la campagna può
@@ -45,12 +46,14 @@ def read_shared(path):
     return Path(path).read_text(encoding='utf-8', errors='replace')
 
 
-def analyse(text):
+def analyse(text, since=None):
     rows = []
     for line in text.splitlines():
         if not line.strip():
             continue
         e = json.loads(line)
+        if since and e.get('finished_utc', '') < since:
+            continue
         reader = e.get('reader') or {}
         sec, cnt = reader.get('seconds', {}), reader.get('counters', {})
         rows.append({'tile': f"{e['aoi_id']}/{e['tile']}", 'pixels': e['coverage']['pixels'],
@@ -102,8 +105,9 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--log', required=True)
     p.add_argument('--json')
+    p.add_argument('--since', help='Solo tile finite da questo istante UTC ISO, es. 2026-11-12T15:00:00 (confronto prima/dopo)')
     args = p.parse_args()
-    result = analyse(read_shared(args.log))
+    result = analyse(read_shared(args.log), args.since)
     print(json.dumps(result, indent=2))
     if args.json:
         out = Path(args.json).resolve()

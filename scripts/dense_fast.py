@@ -23,7 +23,9 @@
 #   Vedere dense_fast/pipeline.py. bench scrive <bench-root>\bench_result.json.
 # PARAMETRI
 #   --io-workers (16): richieste remote in parallelo (pool globale condiviso da S2/S1 e dalle tile del lotto).
-#   --batch-pixels (1.500.000): pixel massimi per lotto di tile vicine. RAM ~3,5 kB per pixel per lotto in memoria.
+#   --batch-pixels (1.000.000): pixel massimi per lotto di tile vicine. RAM ~3,5 kB per pixel per lotto in memoria.
+#                   Compromesso misurato nel benchmark simulato: lotti grandi condividono più byte ma la GPU parte
+#                   solo a lotto finito; con ~1M le tile piccole viaggiano insieme e quelle grandi (~930k) da sole.
 #   --prefetch (1): lotti acquisiti in attesa della GPU.
 #   --memory-cache-mib (4096): cache RAM dei blocchi nativi SCL/S1.
 #   --gdal-cache-mib (2048), --vsi-cache-mib (512): cache GDAL dei blocchi e dei byte HTTP.
@@ -60,7 +62,7 @@ def parser():
     p.add_argument('--chunk-size', type=int, default=4096)
     p.add_argument('--pixel-batch', type=int, default=256)
     p.add_argument('--io-workers', type=int, default=16)
-    p.add_argument('--batch-pixels', type=int, default=1_500_000)
+    p.add_argument('--batch-pixels', type=int, default=1_000_000)
     p.add_argument('--prefetch', type=int, default=1)
     p.add_argument('--memory-cache-mib', type=int, default=4096)
     p.add_argument('--gdal-cache-mib', type=int, default=2048)

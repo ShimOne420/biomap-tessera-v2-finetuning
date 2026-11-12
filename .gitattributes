@@ -1,0 +1,5 @@
+# Fine riga fissi per il codice: l'identità delle cache (CODE_FILES) è lo SHA256 dei sorgenti.
+# Con core.autocrlf=true un checkout Windows convertirebbe in CRLF e cambierebbe l'identità,
+# rendendo incompatibili le cache prodotte da due checkout dello stesso commit.
+*.py text eol=lf
+*.ps1 text eol=lf

@@ -1,41 +1,57 @@
-# CPU CI: test real setup on Windows; parity/gradients/resume on both OS. No CUDA claim.
+# Scopo: test CPU unificati/import su runner standard, senza dati, GPU o credenziali.
+# Fasi: Python 3.12 -> setup privato -> import -> pytest inclusa CNN V1 e contratto r1.
+# Input: codice PR verso main; output: log e riepilogo pytest. Nessun artefatto dati caricato.
+# Risorse: massimo 20 minuti/job; concurrency cancella solo workflow superati della stessa PR.
+# Ripresa: nuovo push rilancia la suite; non usa runner universitari o cache di produzione.
 name: tests
-on: [push, pull_request]
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cpu-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   cpu:
+    name: CPU (${{ matrix.os }})
     strategy:
+      fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
     env:
       OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      MPLBACKEND: Agg
+      MPLCONFIGDIR: ${{ github.workspace }}/.pytest_cache/mpl
+      CUDA_VISIBLE_DEVICES: ''
+      HF_HUB_OFFLINE: '1'
+      HF_DATASETS_OFFLINE: '1'
+      DEV_PYTHON: ${{ startsWith(matrix.os, 'windows') && '.venv-dev/Scripts/python.exe' || '.venv-dev/bin/python' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Setup Windows documented environment
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          .\scripts\setup_windows.ps1 -CpuOnly -DataRoot "$env:RUNNER_TEMP\biomap-data"
-      - name: Install Linux CPU environment
-        if: runner.os == 'Linux'
-        run: |
-          python -m pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install -r requirements-lock.txt
-          python -m pip install -e . --no-deps --no-build-isolation
-          python -m pip check
-      - name: Test Windows
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          & .\.venv\Scripts\python.exe -m pytest
-          if ($LASTEXITCODE -ne 0) { throw 'pytest failed' }
-          & .\.venv\Scripts\python.exe scripts\probe_bii.py --help
-          if ($LASTEXITCODE -ne 0) { throw 'CLI failed' }
-      - name: Test Linux
-        if: runner.os == 'Linux'
-        run: |
-          python -m pytest
-          python scripts/probe_bii.py --help
+          cache: pip
+          cache-dependency-path: |
+            requirements-lock.txt
+            requirements-dev.txt
+            scripts/setup_dev.py
+      - name: Install isolated CPU development environment
+        run: python scripts/setup_dev.py
+      - name: Check syntax, installed imports and CPU backward
+        run: '"$DEV_PYTHON" scripts/check_dev_environment.py'
+      - name: Run all CPU tests including Experiment B and r1 contract
+        run: '"$DEV_PYTHON" -m pytest -ra'

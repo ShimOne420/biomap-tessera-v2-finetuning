@@ -1,4 +1,6 @@
 .venv/
+.venv-dev/
+/test-results/
 .venv-geotessera/
 local_data/
 __pycache__/

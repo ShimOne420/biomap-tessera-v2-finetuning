@@ -13,6 +13,6 @@ dependencies = ["numpy", "pandas", "pyarrow", "PyYAML", "rasterio", "pyproj", "s
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "experiments/v1_spatial_cnn_msa/tests"]
 pythonpath = ["src"]
 addopts = "-q"

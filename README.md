@@ -1,3 +1,7 @@
+# Sviluppo indipendente su macOS, Windows e Linux
+
+Per contribuire al codice senza intervenire sulla campagna universitaria: [setup Python 3.12 e test CPU](docs/development/MACOS_SETUP.md), [regole per agenti e collaboratori](AGENTS.md), [CI e costi/limiti Actions](docs/development/CI_AND_R1.md). Ambiente privato `.venv-dev`; `python -m pytest` include anche l'Esperimento B. I cinque `CODE_FILES` r1 rimangono congelati e sono protetti da un contratto versionato.
+
 # Aggiornamento: campagna densa 127.909 interamente dal PC (branch dense-public-pc)
 
 Percorso senza artefatti del Mac: tile V1 GeoTESSERA 1.0/vultr pubbliche, `build-reference`, V2

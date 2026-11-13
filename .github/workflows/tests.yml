@@ -60,3 +60,6 @@ jobs:
         run: '"$DEV_PYTHON" scripts/check_dev_environment.py'
       - name: Run all CPU tests including Experiment B and r1 contract
         run: '"$DEV_PYTHON" -m pytest -ra'
+      # Separate process: Experiment V2 spatial reuses B module names (runtime, dataset, train...).
+      - name: Run Experiment V2 spatial CPU tests (separate pytest process)
+        run: '"$DEV_PYTHON" -m pytest -ra experiments/v2_spatial_cnn_msa/tests'

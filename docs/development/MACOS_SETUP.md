@@ -76,7 +76,7 @@ Il primo comando controlla la sintassi, gli import del progetto installato e del
 
 Il secondo esegue **tutti i test CPU standard**, inclusi `tests/`, contratto r1 e `experiments/v1_spatial_cnn_msa/tests/`. Non occorre ricordare un secondo percorso pytest. Il riepilogo `-ra` espone skip ed errori; non nasconde i warning.
 
-Il runner Ubuntu ha evidenziato una differenza numerica nel caso S1 storico di frontiera: la r1 produce `5097` dove il test richiede `5098`. Il controllo non viene saltato o allargato. `check_dev_environment.py` registra NumPy, dispatch `log10` e valore prima/dopo conversione, senza modificarli. La compatibilità degli import non implica identità numerica del preprocessing tra piattaforme; leggere gli esiti effettivi in [VALIDATION.md](VALIDATION.md).
+Il runner Ubuntu ha evidenziato una differenza numerica S1 di frontiera: `5097` contro `5098`. I test verificano ora il contratto float32/troncamento con kernel controllati e il kernel nativo su valori lontani dalle soglie; non usano tolleranze allargate o skip. `check_dev_environment.py` continua a registrare output nativo, bit float32 del logaritmo e dispatch, senza modificarli. La suite verde non implica identità numerica del preprocessing fra piattaforme: leggere la [decisione S1](S1_NUMERICAL_PORTABILITY.md) e gli esiti in [VALIDATION.md](VALIDATION.md).
 
 Il file storico `tests/review_acceleration_cases.py` resta diagnostico ed esplicitamente separato: afferma la presenza di difetti di una vecchia revisione e non è un criterio di accettazione. Il motivo e il suo esito separato sono documentati in [VALIDATION.md](VALIDATION.md).
 

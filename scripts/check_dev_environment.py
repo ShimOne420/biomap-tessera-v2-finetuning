@@ -77,6 +77,11 @@ def main(argv=None):
     report.update(numpy=np.__version__, numpy_log10_dispatch=np.lib.introspect.opt_func_info(func_name='log10'),
                   r1_s1_boundary={'input': float(boundary[0]), 'storage': int(s1_storage(boundary)[0]),
                                   'before_integer': float(((np.float32(20) * np.log10(positive) + np.float32(50)) * np.float32(200))[0]),
+                                  'log10_float32_bits': [hex(int(bits)) for bits in np.log10(positive).view(np.uint32)],
+                                  'recorded_mac_storage': 5098,
+                                  'diagnostic_status': ('matches_recorded_mac_boundary' if int(s1_storage(boundary)[0]) == 5098
+                                                        else 'differs_from_recorded_mac_boundary'),
+                                  'cross_platform_bitwise_guarantee': False,
                                   'contract_test': 'tests/test_dense_public.py::test_s1_storage_historical_convention'})
     if args.probe_mps:
         if not report['mps_available']:

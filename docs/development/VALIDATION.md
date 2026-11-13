@@ -36,7 +36,7 @@ I cinque `CODE_FILES` r1 e `requirements-lock.txt` sono identici alla base `cf9f
 
 I test controllano hash raw/EOL, protocollo, default, dispatch e compatibilità/rifiuto dei marker su una cache sintetica. Non certificano gli hash attuali del PC universitario, che non è accessibile.
 
-## Limiti e verifiche remote
+## Limiti e verifiche remote: stato precedente alla revisione S1
 
 La CI predisposta ha tre job CPU standard Ubuntu/macOS/Windows e usa lo stesso comando unificato. Lo stato del run della PR è consultabile su GitHub: non va confuso con la prova Mac locale riportata qui. La disponibilità di MPS, CUDA, i processi/marker universitari e il completamento della campagna non sono verificati da questi test.
 
@@ -55,3 +55,17 @@ L'errore Ubuntu è `tests/test_dense_public.py::test_s1_storage_historical_conve
 Un successivo controllo import nel clone Desktop ha rilevato `ModuleNotFoundError`: il `.pth` editable risultava `UF_HIDDEN` e veniva ignorato da Python 3.12. È stato quindi preparato un clone Git indipendente e una nuova venv sotto `~/Developer`, fuori da iCloud. Il `.pth` e la configurazione Git del clone persistente non risultano hidden/dataless; gli import editable e la suite sono passati senza `PYTHONPATH`. I checkout storici sono stati preservati; il setup dipende solo da pacchetti ufficiali e libomp, senza dati della produzione. Gli esiti del clone persistente sono registrati nel riepilogo JSON e nella PR.
 
 Nessuna modifica al codice scientifico è stata necessaria per far passare la suite. La documentazione costi/limiti cita le fonti ufficiali verificate alla data dell'intervento. Un riepilogo leggibile automaticamente è in [validation_mac.json](validation_mac.json).
+
+
+## Revisione S1 e consolidamento Git — 13 novembre 2026
+
+La [PR #5](https://github.com/ShimOne420/biomap-tessera-v2-finetuning/pull/5) ha integrato `cf9f06c` con merge commit `8822f60e90dee58b8a8b13172062c75b69e8c499`. Il contenuto del merge candidato coincideva con l'albero Git dell'integrazione già verde su Linux/Windows. La PR #3 è stata riconosciuta da GitHub come merged; nessun rebase o force push. I controlli locali mostrano che il diff infrastrutturale contiene soltanto le modifiche successive alla base integrata.
+
+La precedente sezione conserva gli esiti storici. La nuova [decisione sulla portabilità numerica S1](S1_NUMERICAL_PORTABILITY.md) sostituisce il gate di merge basato sul singolo valore nativo: non sostituisce i riferimenti SHA/EOL r1 e non dimostra identità numerica fra host. Il test originale conserva il nome e diventa parametrico con kernel controllati; si aggiunge un test nativo con risultati interi esatti lontano dalle soglie.
+
+Prima prova mirata: **28 passati, 0 falliti, 0 saltati**, 4,26 secondi (`tests/test_dense_public.py` e `tests/test_r1_contract.py`). La validazione completa aggiornata e la CI della revisione saranno registrate separatamente; questi 28 test non sono il risultato della suite completa.
+
+
+La prima suite unificata pre-commit ha dato **167 passati, 1 fallito, 1 skip**, 50,10 secondi. Il fallimento è `test_experiment_does_not_write_session_a_or_shared_code`: controlla il diff Git non indicizzato e vede lo script diagnostico ancora modificato. Non è una regressione del modello B e il test non viene alterato; la suite verrà ripetuta sul commit pulito.
+
+Verifica aggiuntiva in processi isolati, senza scrivere i file r1: i nuovi test rilevano tutte e quattro le mutazioni introdotte in memoria (float64 prima del log, scala errata, round al posto del troncamento, clipping rimosso). Ognuna provoca fallimenti attesi. Il controllo import/forward-backward CPU passa. Un clone remoto nuovo di main a `8822f60` è pulito e riproduce tutti e cinque gli SHA256 raw e le EOL della fixture pubblica. I dettagli leggibili automaticamente sono in [validation_s1_revision.json](validation_s1_revision.json).

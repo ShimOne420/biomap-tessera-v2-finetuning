@@ -17,7 +17,7 @@ Per l'infrastruttura corrente lavorare esclusivamente su `feature/mac-dev-infras
 - Il lock scientifico resta `requirements-lock.txt`; `requirements-dev.txt` lo include e blocca Torch. Non rigenerare indiscriminatamente il lock con freeze di un computer diverso.
 - I test devono funzionare su CPU, con fixture locali e senza token/dataset/checkpoint. La fixture radice blocca connessioni esterne comuni; non è un sandbox per codice nativo arbitrario. Non disattivarla per far passare un download.
 - Non eliminare test, aumentare tolleranze scientifiche o aggiungere skip per aggirare un errore. Uno skip deve descrivere una reale dipendenza di piattaforma.
-- La CI Ubuntu ha rilevato una divergenza S1 sul caso storico di frontiera (`5097` contro `5098`); resta un errore visibile da analizzare. Non cambiare riferimento, dispatch NumPy o aritmetica r1 per ottenere artificialmente una CI verde.
+- La divergenza S1 nativa di frontiera (`5097` contro `5098`) resta registrata da `check_dev_environment.py`. I test separano kernel controllato e kernel reale lontano dalle soglie, con assert esatte: leggere `docs/development/S1_NUMERICAL_PORTABILITY.md`. Non cambiare CODE_FILES, dispatch NumPy, fixture r1 o tolleranze per rendere verde la CI. Suite verde non significa identita numerica fra piattaforme.
 
 ## Contratto r1 da preservare
 

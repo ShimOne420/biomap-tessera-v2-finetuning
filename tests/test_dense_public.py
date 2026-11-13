@@ -59,12 +59,35 @@ def test_build_area_geometry_matches_v1(dense_raw, tmp_path):
     assert spec['geometry_sha256'] == digest(folder / 'grid_test' / 'geometry.npz') and spec['pixels'] == 12
 
 
-def test_s1_storage_historical_convention():
-    value = np.array([0.05949767306447029, 0.0, -1.0, np.nan, 1e-9])
+# Il log10 nativo puo differire di un ULP tra kernel: separare contratto e kernel reale.
+# 0xbf9cdd2f e il log float32 misurato su Mac/NumPy 2.2.6; il successivo rappresentabile
+# negativo, 0xbf9cdd30, produce esattamente il valore pre-cast osservato su Ubuntu.
+# Nessuna tolleranza o atteso alternativo: ciascun kernel controllato ha un risultato esatto.
+@pytest.mark.parametrize('log10_bits, expected', [(0xbf9cdd2f, 5098), (0xbf9cdd30, 5097)])
+def test_s1_storage_historical_convention(monkeypatch, log10_bits, expected):
+    value = np.array([0.05949767306447029, 0.0, -1.0, np.nan, 1e-9], dtype=np.float64)
+    calls = []
+
+    def controlled_log10(positive):
+        assert positive.dtype == np.dtype('float32'), 'La r1 deve convertire prima del log10'
+        np.testing.assert_array_equal(positive, np.array([value[0], value[4]], dtype=np.float32))
+        calls.append(positive.copy())
+        return np.array([log10_bits, 0xc1100000], dtype=np.uint32).view(np.float32)
+
+    monkeypatch.setattr(st.np, 'log10', controlled_log10)
     out = st.s1_storage(value)
-    assert out[0] == 5098  # caso reale: float64 darebbe 5097, lo storico e il Medium usano float32
-    assert out[1:4].tolist() == [0, 0, 0] and out[4] == 0
+    assert len(calls) == 1 and out.dtype == np.dtype('int16') and out.shape == value.shape
+    assert out.tolist() == [expected, 0, 0, 0, 0]
     assert st.doy('2020-12-31') == 366 and st.doy('2020-01-01') == 1
+
+
+def test_s1_storage_native_kernel_away_from_integer_boundaries():
+    # Usa il kernel reale: scale/offset, invalidi, clipping e shape restano verificati.
+    # I valori interni non interi distano almeno 0.1 dal confine: non serve allclose.
+    value = np.array([[.02, .2, .5, 1., 2., 0., -1., np.nan, np.inf, 1e-9, 1e10]])
+    out = st.s1_storage(value)
+    assert out.dtype == np.dtype('int16') and out.shape == value.shape
+    assert out.tolist() == [[3204, 7204, 8795, 10000, 11204, 0, 0, 0, 0, 0, 32767]]
 
 
 class FakeSource:

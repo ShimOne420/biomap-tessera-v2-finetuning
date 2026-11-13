@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "https://github.com/ShimOne420/biomap-tessera-v2-finetuning",
+    "commit": "1cdc76274738659cdfe1727c48ad9784b94cbd7f",
+    "integration_verified_at": "cf9f06c334ba036506ceca267f6cddc1dabd4c9a",
+    "derivation": "git show published_commit:path, then checkout EOL from that commit .gitattributes; compared byte-for-byte with integration checkout",
+    "live_university_cache_verified": false
+  },
+  "protocol": "dense127909-stream-legacy-exact-r1",
+  "code_files": [
+    "src/biomap_v2/campaign/streaming.py",
+    "src/biomap_v2/raster_cache.py",
+    "src/biomap_v2/data.py",
+    "src/biomap_v2/reference.py",
+    "src/biomap_v2/encoder.py"
+  ],
+  "files": {
+    "src/biomap_v2/campaign/streaming.py": {
+      "eol": "lf",
+      "git_blob": "e73349a2f9e2d809b221ce1b5b2b1924370945b6",
+      "sha256_git_blob": "22d483993fe303b6b92e9c7516e95a461e1ed0dca18abc9d3fec965834626f95",
+      "sha256_worktree": "22d483993fe303b6b92e9c7516e95a461e1ed0dca18abc9d3fec965834626f95"
+    },
+    "src/biomap_v2/raster_cache.py": {
+      "eol": "crlf",
+      "git_blob": "1ac5b1910ad0cfe29cc4e21fee5007acffa93d35",
+      "sha256_git_blob": "a818e3612029e582c36df76404182ee186707ecafe05400de5a36b01f8c09ae4",
+      "sha256_worktree": "1cbc8e9a41b6d445cc650de9a738a10006c0ea3bd079e6c590d36389c2287db8"
+    },
+    "src/biomap_v2/data.py": {
+      "eol": "crlf",
+      "git_blob": "5b5e688e71404764400d222fe21171fc7bea0f0d",
+      "sha256_git_blob": "826c41f5cba2d3a554752a05f611998d8ee553bfbdd11e2741cee40afbf16a4e",
+      "sha256_worktree": "bd81b43f0fb5f4977e420f52ecb238689941ad6554a0d6030670ee5d349f6849"
+    },
+    "src/biomap_v2/reference.py": {
+      "eol": "crlf",
+      "git_blob": "a2ea5fa3a95ed1b42a41fa4144061493da1c573f",
+      "sha256_git_blob": "33fb09cf90f662e50a986d7b170b916ae08e9e83635eb85717ae1860c1bf6978",
+      "sha256_worktree": "018c49170a305c0791c3b87ee13e9e4d622a8009f13c56f3a7cf333c20e2b769"
+    },
+    "src/biomap_v2/encoder.py": {
+      "eol": "crlf",
+      "git_blob": "e0596357687ab8b719dee6c903cfd242c6cb9409",
+      "sha256_git_blob": "f8f08a60612545b74da50af7d357a17873f42f34b0a2041fdd0fe8ecc21042a7",
+      "sha256_worktree": "d556151970231476f5957e6daced8dae81ec9ff4db8fd10c7a11f11e234a1926"
+    }
+  },
+  "checkpoint_sha256": "3823be7db9d9cfc93f3c2a47c7699be82821ab4e1117d4d2befdb746941ee96e",
+  "invalid_scl": [
+    0,
+    1,
+    2,
+    3,
+    8,
+    9
+  ],
+  "read_attempts": 6,
+  "identity_fields": [
+    "protocol",
+    "geometry",
+    "year",
+    "checkpoint",
+    "precision",
+    "code"
+  ],
+  "identity_year": 2020,
+  "identity_precision": "fp32",
+  "cli_stream_defaults": {
+    "device": "cpu",
+    "chunk_size": 4096,
+    "pixel_batch": 32,
+    "io_threads": 8,
+    "amp": false,
+    "keep_pixel_embeddings": false,
+    "max_tiles": null,
+    "aoi": null
+  },
+  "windows_launcher_sha256_lf": "abb8357db81c461bd0d378428f874bfe39542ff2581fba8f6a427df3d381bd53",
+  "state_source_sha256_lf": "d056425d542ca4e524a2e022fd88240cc981741b66d72f1923d46e3a8c9b9b1e"
+}

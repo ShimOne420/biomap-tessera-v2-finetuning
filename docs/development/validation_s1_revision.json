@@ -1,0 +1,104 @@
+{
+  "date": "2026-11-13",
+  "branch": "feature/mac-dev-infrastructure",
+  "integration_pr": 5,
+  "integration_merge": "8822f60e90dee58b8a8b13172062c75b69e8c499",
+  "fresh_clone_r1_audit": {
+    "commit": "8822f60e90dee58b8a8b13172062c75b69e8c499",
+    "files": {
+      "src/biomap_v2/campaign/streaming.py": {
+        "sha256": "22d483993fe303b6b92e9c7516e95a461e1ed0dca18abc9d3fec965834626f95",
+        "eol": "lf",
+        "matches": true
+      },
+      "src/biomap_v2/raster_cache.py": {
+        "sha256": "1cbc8e9a41b6d445cc650de9a738a10006c0ea3bd079e6c590d36389c2287db8",
+        "eol": "crlf",
+        "matches": true
+      },
+      "src/biomap_v2/data.py": {
+        "sha256": "bd81b43f0fb5f4977e420f52ecb238689941ad6554a0d6030670ee5d349f6849",
+        "eol": "crlf",
+        "matches": true
+      },
+      "src/biomap_v2/reference.py": {
+        "sha256": "018c49170a305c0791c3b87ee13e9e4d622a8009f13c56f3a7cf333c20e2b769",
+        "eol": "crlf",
+        "matches": true
+      },
+      "src/biomap_v2/encoder.py": {
+        "sha256": "d556151970231476f5957e6daced8dae81ec9ff4db8fd10c7a11f11e234a1926",
+        "eol": "crlf",
+        "matches": true
+      }
+    },
+    "clean": true
+  },
+  "environment": {
+    "python": "3.12.14",
+    "architecture": "arm64",
+    "numpy": "2.2.6",
+    "torch": "2.10.0",
+    "syntax_files": 119,
+    "cpu_forward_backward": "passed",
+    "r1_s1_boundary": {
+      "input": 0.05949767306447029,
+      "storage": 5098,
+      "before_integer": 5098.0,
+      "log10_float32_bits": [
+        "0xbf9cdd2f",
+        "0xc1100000"
+      ],
+      "recorded_mac_storage": 5098,
+      "diagnostic_status": "matches_recorded_mac_boundary",
+      "cross_platform_bitwise_guarantee": false,
+      "contract_test": "tests/test_dense_public.py::test_s1_storage_historical_convention"
+    }
+  },
+  "targeted_tests": {
+    "passed": 28,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 4.26
+  },
+  "precommit_unified_suite": {
+    "passed": 167,
+    "failed": 1,
+    "skipped": 1,
+    "seconds": 50.1,
+    "failure": "B test requires git diff to be empty for scripts; check_dev_environment.py was still uncommitted",
+    "test": "test_experiment_does_not_write_session_a_or_shared_code"
+  },
+  "in_memory_mutations_detected": {
+    "float64_before_log10": {
+      "failed": 2,
+      "passed": 1
+    },
+    "wrong_scale": {
+      "failed": 3,
+      "passed": 0
+    },
+    "round_instead_of_truncation": {
+      "failed": 2,
+      "passed": 1
+    },
+    "missing_clipping": {
+      "failed": 3,
+      "passed": 0
+    }
+  },
+  "postcommit_unified_suite": {
+    "tested_code_commit": "a7f76478ede671d533388adc9cdcd2ee5af47d58",
+    "passed": 168,
+    "failed": 0,
+    "skipped": 1,
+    "warnings": 1425,
+    "seconds": 55.79,
+    "skip_reason": "Windows file sharing only"
+  },
+  "ci_revision": {
+    "status": "pending"
+  },
+  "production_accessed": false,
+  "cross_platform_bitwise_preprocessing_verified": false
+}

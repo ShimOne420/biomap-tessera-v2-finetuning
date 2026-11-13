@@ -1,0 +1,5 @@
+# Ambiente di sviluppo Python 3.12: conserva integralmente il lock scientifico.
+# Installare PRIMA Torch dal canale CPU su Linux/Windows; su macOS usare la wheel PyPI.
+# Il suffisso locale +cpu soddisfa ==2.10.0. Non usare questo file per aggiornare la produzione.
+-r requirements-lock.txt
+torch==2.10.0

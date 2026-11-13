@@ -139,10 +139,16 @@ def encode_tile(args, state, aoi, tile_name, raw, ids, base, tmp, progress):
         if keep is not None:
             keep[low:high] = emb
         progress.update(f'{aoi}/{tile_name}', high, n, add_pixels=high - low)
-    return sums, counts, keep
+    if keep is None:
+        return sums, counts, None
+    # Unico riferimento al memmap: flush e chiusura qui. Su Windows un file ancora mappato non si può spostare
+    # (WinError 32): a valle si passa solo il percorso del file parziale.
+    keep.flush()
+    del keep
+    return sums, counts, tmp / 'pixels.partial.npy'
 
 
-def finalize_tile(args, work, aoi, tile_name, base, sums, counts, keep, tmp, reference_tile):
+def finalize_tile(args, work, aoi, tile_name, base, sums, counts, partial, tmp, reference_tile):
     from biomap_v2.campaign.streaming import remove_temporary
     final = work / 'chunks' / aoi / tile_name / 'tile.npz'
     present = np.flatnonzero(counts)
@@ -151,9 +157,9 @@ def finalize_tile(args, work, aoi, tile_name, base, sums, counts, keep, tmp, ref
         if not (np.array_equal(z['cell'], present) and np.array_equal(z['sums'], sums[present])
                 and np.array_equal(z['counts'], counts[present])):
             raise ValueError(f'{final}: rilettura diversa dai valori calcolati; temporanei conservati')
-    if keep is not None:
+    if partial is not None:
         from .spatial import save_pixel_embeddings
-        save_pixel_embeddings(work, aoi, tile_name, keep, tmp / 'pixels.partial.npy', reference_tile, base)
+        save_pixel_embeddings(work, aoi, tile_name, partial, reference_tile, base)
     if tmp.exists():
         remove_temporary(tmp, work)
 
@@ -257,8 +263,8 @@ def stream_fast(args, spec, frame):
                     with np.load(ref / aoi / tile_name / 'geometry.npz') as z:
                         ids = lookup[z['cell_ids']]
                     tmp = work / 'tmp' / aoi / tile_name
-                    sums, counts, keep = encode_tile(args, state, aoi, tile_name, tile['raw'], ids, tile['base'], tmp, progress)
-                    finalize_tile(args, work, aoi, tile_name, tile['base'], sums, counts, keep, tmp, ref / aoi / tile_name)
+                    sums, counts, partial = encode_tile(args, state, aoi, tile_name, tile['raw'], ids, tile['base'], tmp, progress)
+                    finalize_tile(args, work, aoi, tile_name, tile['base'], sums, counts, partial, tmp, ref / aoi / tile_name)
                     encoded = time.perf_counter() - started
                     gpu_busy += encoded
                     tile['raw'] = None

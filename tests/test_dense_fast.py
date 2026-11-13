@@ -320,3 +320,46 @@ def test_make_batches_groups_neighbours_within_aoi():
                                                             [('b', 't1'), ('b', 't2')]]
     assert fast_pipeline.make_batches(plan, sizes, 1000) == [[('a', 't1'), ('a', 't2'), ('a', 't3')],
                                                              [('b', 't1'), ('b', 't2')]]
+
+
+def test_end_to_end_keep_pixel_embeddings(synthetic, tmp_path, monkeypatch):
+    # Percorso --keep-pixel-embeddings (usato dalla Spatial CNN V2): su Windows il memmap della tile deve essere
+    # chiuso prima dello spostamento, altrimenti shutil.move copia il file, fallisce sull'unlink (WinError 32) e
+    # il sidecar .json non viene mai scritto; tile.npz è già scritto, quindi la ripresa non lo rigenera.
+    from biomap_v2.campaign import extraction
+    from biomap_v2.common import digest
+    checkpoint = tmp_path / 'fake.pt'
+    checkpoint.write_bytes(b'fake checkpoint')
+    monkeypatch.setattr(fast_pipeline, 'WEIGHTS_SHA256', digest(checkpoint))
+    monkeypatch.setattr(legacy, 'catalog', lambda tile, pixels, folder: (synthetic.catalogs[Path(tile).name],
+                                                                          pixels.edge_bbox()))
+    monkeypatch.setattr(legacy, 'load_model', lambda args: 'fake-model')
+    monkeypatch.setattr(extraction, 'infer', fake_infer)
+    common = dict(reference=str(synthetic.reference), checkpoint=str(checkpoint), device='cpu', chunk_size=97,
+                  pixel_batch=16, keep_pixel_embeddings=True, amp=False, aoi=None, max_tiles=None)
+    args = SimpleNamespace(work_root=str(tmp_path / 'r2'), io_workers=5, batch_pixels=10_000, prefetch=1,
+                           memory_cache_mib=64, gdal_cache_mib=64, vsi_cache_mib=16, tiles=None, **common)
+    status = fast_pipeline.stream_fast(args, synthetic.spec, synthetic.frame)
+    assert status['tiles_missing'] == 0
+    work = tmp_path / 'r2'
+    for t in ['grid_a', 'grid_b']:
+        npy = work / 'pixel_embeddings' / 'aoi_x' / f'{t}.npy'
+        meta = json.loads(npy.with_suffix('.json').read_text(encoding='utf-8'))
+        assert meta['sha256'] == digest(npy)
+        assert meta['geometry_sha256'] == digest(synthetic.reference / 'aoi_x' / t / 'geometry.npz')
+        emb = np.load(npy)
+        lookup = np.load(synthetic.reference / 'aoi_x' / 'lookup.npy')
+        with np.load(synthetic.reference / 'aoi_x' / t / 'geometry.npz') as z:
+            ids = lookup[z['cell_ids']]
+        with np.load(work / 'chunks' / 'aoi_x' / t / 'tile.npz') as z:
+            cell, sums = z['cell'], z['sums']
+        assert emb.dtype == np.float32 and emb.shape == (len(ids), 128)
+        valid = np.isfinite(emb).all(axis=1)
+        recomputed = np.zeros((len(synthetic.frame), 128))
+        np.add.at(recomputed, ids[valid], emb[valid].astype(np.float64))
+        assert np.allclose(recomputed[cell], sums, rtol=1e-12, atol=0)
+    assert not (work / 'tmp' / 'aoi_x').exists() or not any((work / 'tmp' / 'aoi_x').rglob('*.npy'))
+    # Ripresa: nessun lavoro nuovo, file per pixel invariati.
+    before = {p.name: digest(p) for p in (work / 'pixel_embeddings' / 'aoi_x').glob('*.npy')}
+    fast_pipeline.stream_fast(args, synthetic.spec, synthetic.frame)
+    assert before == {p.name: digest(p) for p in (work / 'pixel_embeddings' / 'aoi_x').glob('*.npy')}

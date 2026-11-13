@@ -2,10 +2,11 @@
 #   Conservazione opzionale degli embedding V2 PER PIXEL con tutto ciò che serve a ricostruire mappe 2D
 #   geograficamente allineate (esperimenti CNN spaziali), senza mai rimodellare vettori medi per cella.
 # COME VIENE RICHIAMATO
-#   Dalla pipeline con --keep-pixel-embeddings: save_pixel_embeddings(...).
+#   Dalla pipeline con --keep-pixel-embeddings: save_pixel_embeddings(work, aoi, tile, percorso_parziale, ...).
 #   Per l'analisi: emb, valid, transform, crs = pixel_map(work_root, aoi, tile, reference_root)
 # LOGICA IN ORDINE
-#   1. Alla fine della tile il memmap temporaneo (n_pixel, 128) float32 viene spostato in
+#   1. Alla fine della tile il memmap temporaneo (n_pixel, 128) float32, già chiuso da encode_tile, viene spostato
+#      con os.replace (stesso volume) in
 #      pixel_embeddings/<aoi>/<tile>.npy; l'ordine delle righe è quello di geometry.npz flat_indices.
 #   2. Accanto si scrive un JSON con SHA256 del file, identità del protocollo, SHA256 di geometry.npz e
 #      la georeferenziazione del reticolo V1 (width, height, transform, crs) letta da geometry.json.
@@ -21,7 +22,7 @@
 # RIPRESA
 #   Il file finale compare solo a tile completata; un memmap parziale resta in tmp e si rifà.
 import json
-import shutil
+import os
 from pathlib import Path
 
 import numpy as np
@@ -31,12 +32,11 @@ from biomap_v2.common import digest
 from .io_safe import save_json
 
 
-def save_pixel_embeddings(work, aoi, tile_name, keep, partial, reference_tile, identity):
-    keep.flush()
-    del keep
+def save_pixel_embeddings(work, aoi, tile_name, partial, reference_tile, identity):
+    # partial: .npy già scritto e CHIUSO da encode_tile (un memmap aperto blocca lo spostamento su Windows).
     destination = Path(work) / 'pixel_embeddings' / aoi / f'{tile_name}.npy'
     destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(partial), destination)
+    os.replace(partial, destination)
     spec = json.loads((Path(reference_tile) / 'geometry.json').read_text(encoding='utf-8'))
     save_json(destination.with_suffix('.json'), {
         'sha256': digest(destination), 'identity': identity, 'order': 'geometry.npz flat_indices', 'dtype': 'float32',

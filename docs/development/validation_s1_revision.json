@@ -88,7 +88,13 @@
     }
   },
   "postcommit_unified_suite": {
-    "status": "pending"
+    "tested_code_commit": "a7f76478ede671d533388adc9cdcd2ee5af47d58",
+    "passed": 168,
+    "failed": 0,
+    "skipped": 1,
+    "warnings": 1425,
+    "seconds": 55.79,
+    "skip_reason": "Windows file sharing only"
   },
   "ci_revision": {
     "status": "pending"

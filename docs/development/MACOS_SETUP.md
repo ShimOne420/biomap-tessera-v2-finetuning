@@ -28,6 +28,16 @@ python3.12 scripts/setup_dev.py
 
 Se Python 3.12 manca, installarlo personalmente da [python.org](https://www.python.org/downloads/macos/) oppure con il proprio gestore di pacchetti prima del setup. Lo script non installa Python, driver, Homebrew o toolchain di sistema.
 
+Su macOS XGBoost richiede anche il runtime OpenMP **libomp**, esterno alla venv. Con Homebrew già disponibile verificarlo e, se manca, installarlo esplicitamente prima del controllo import:
+
+```bash
+brew list --versions libomp
+# Solo se il controllo precedente segnala che libomp non è installato:
+brew install libomp
+```
+
+Il setup Python non modifica automaticamente i pacchetti di sistema. La CI installa esplicitamente questo prerequisito sul runner macOS. L'errore `Library not loaded: @rpath/libomp.dylib` non si risolve eliminando XGBoost dai test o cambiando il lock. [Indicazioni XGBoost per macOS/OpenMP](https://xgboost.readthedocs.io/en/release_3.1.0/build.html).
+
 Il setup crea `.venv-dev` con `venv`, installa pip 25.1.1 e Torch 2.10.0, poi `requirements-dev.txt`, che include integralmente il lock scientifico esistente. Installa il progetto editable con `--no-deps --no-build-isolation` e verifica `pip check`. Su macOS usa le wheel Torch di PyPI con CPU e, quando disponibile, MPS. Su Linux/Windows seleziona prima l'indice CPU ufficiale per evitare dipendenze CUDA.
 
 Le dipendenze richiedono rete e spazio su disco; i dati di ricerca no. L'ambiente principale `.venv`, quello della CNN V1 e quelli di altri agenti non sono riutilizzati. Il parametro `--venv /percorso/.venv-dev` consente un'altra root privata; il basename deve rimanere `.venv-dev`. Nessuna attivazione della shell è necessaria.

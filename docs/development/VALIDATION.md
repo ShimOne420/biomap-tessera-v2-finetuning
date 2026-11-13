@@ -40,4 +40,6 @@ I test controllano hash raw/EOL, protocollo, default, dispatch e compatibilità/
 
 La CI predisposta ha tre job CPU standard Ubuntu/macOS/Windows e usa lo stesso comando unificato. Lo stato del run della PR è consultabile su GitHub: non va confuso con la prova Mac locale riportata qui. La disponibilità di MPS, CUDA, i processi/marker universitari e il completamento della campagna non sono verificati da questi test.
 
+Nel [primo run CI](https://github.com/ShimOne420/biomap-tessera-v2-finetuning/actions/runs/43419082195), il job macOS è fallito al controllo import per assenza di `libomp.dylib`; la suite non è stata avviata su quel job dopo il fallimento. La dipendenza era già disponibile sul Mac locale. È stato aggiunto un passo Homebrew specifico del runner macOS e documentato il prerequisito: nessuna versione del lock o sorgente r1 è stata modificata per aggirare l'errore.
+
 Nessuna modifica al codice scientifico è stata necessaria per far passare la suite. La documentazione costi/limiti cita le fonti ufficiali verificate alla data dell'intervento. Un riepilogo leggibile automaticamente è in [validation_mac.json](validation_mac.json).

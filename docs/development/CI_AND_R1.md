@@ -6,6 +6,8 @@
 
 Ogni job installa i pin di sviluppo, verifica sintassi/import/CPU backward e lancia `python -m pytest -ra`, includendo l'Esperimento B. Il job Windows mantiene la copertura del locking specifico della piattaforma. Non servono GPU, token personali, dataset o file del PC universitario. Il normale token interno al checkout ha solo `contents: read` e non viene persistito; nessun secret viene iniettato nei test.
 
+Il runner macOS installa esplicitamente `libomp` tramite Homebrew, con auto-update disabilitato. Il primo run ha individuato l'assenza di questo runtime richiesto dalla wheel XGBoost: è un prerequisito del sistema, non una dipendenza Python rimossa dal lock. Gli import restano obbligatori.
+
 Sono impostati timeout di **20 minuti per job**, cancellazione dei run superati della stessa PR, thread numerici limitati, backend grafico non interattivo e modalità Hugging Face offline. Non si eseguono benchmark di rete/GPU né training scientifici. La suite usa piccoli fit sintetici CPU per verificare il codice.
 
 La cache pip serve solo le dipendenze, con chiave legata ai file di lock/setup; non contiene cache r1, pesi o dataset. Non vengono caricati artefatti sperimentali. Se la cache viene eliminata, l'installazione deve comunque funzionare dai pin. I runner `*-latest` possono evolvere: il report distingue versioni dei pacchetti e piattaforma osservata, senza promettere identità numerica tra hardware diversi.

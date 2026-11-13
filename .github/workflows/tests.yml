@@ -49,6 +49,11 @@ jobs:
             requirements-lock.txt
             requirements-dev.txt
             scripts/setup_dev.py
+      - name: Install macOS OpenMP runtime required by XGBoost
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: brew list --versions libomp || brew install libomp
       - name: Install isolated CPU development environment
         run: python scripts/setup_dev.py
       - name: Check syntax, installed imports and CPU backward

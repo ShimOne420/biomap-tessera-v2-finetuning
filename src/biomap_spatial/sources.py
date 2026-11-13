@@ -159,7 +159,10 @@ class V2Source:
         if final_frame.cell_id.duplicated().any() or set(final_frame.cell_id) != set(self.frame.cell_id) or len(self.frame) != self.completion['n_cells']:
             raise ValueError('Celle finali diverse dal reference')
         paired = self.frame.merge(final_frame, on='cell_id', validate='one_to_one', suffixes=('_ref', '_v2'))
-        for key in ['target', 'aoi_id', 'partition', 'cv_fold', 'n_valid', 'reference_index', 'lon', 'lat']:
+        # r1 (campaign/streaming.py) e r2-fast (dense_fast/pipeline.py) scrivono v2.parquet senza reference_index,
+        # colonna che esiste solo nella reference: la si confronta soltanto se presente.
+        keys = ['target', 'aoi_id', 'partition', 'cv_fold', 'n_valid', 'lon', 'lat'] + (['reference_index'] if 'reference_index' in final_frame else [])
+        for key in keys:
             if key not in final_frame or not np.array_equal(paired[key+'_ref'], paired[key+'_v2']):
                 raise ValueError('Target/split/supporto finali discordanti: ' + key)
         self.frame = self.frame[[c for c in self.frame if not c.startswith('mean_')]].copy()

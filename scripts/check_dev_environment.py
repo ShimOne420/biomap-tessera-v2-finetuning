@@ -21,6 +21,7 @@ PROJECT_MODULES = [
     'biomap_v2.cli', 'biomap_v2.encoder', 'biomap_v2.campaign.cli',
     'biomap_v2.campaign.streaming', 'biomap_v2.dense_fast.pipeline',
     'biomap_dense_heads.cli', 'biomap_ml.campaign',
+    'biomap_spatial.cli', 'biomap_spatial.model',
 ]
 DEPENDENCIES = ['numpy', 'pandas', 'pyarrow', 'rasterio', 'pyproj', 'scipy',
                 'sklearn', 'xgboost', 'torch', 'yaml', 'requests', 'filelock', 'openpyxl']

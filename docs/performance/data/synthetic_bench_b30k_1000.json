@@ -1,0 +1,37 @@
+{
+  "conditions": {
+    "latency_ms": 40,
+    "mbit": 1000.0,
+    "gpu_ms_per_pixel": 0.327,
+    "io_workers_r2": 16,
+    "io_threads_r1": 16
+  },
+  "data": {
+    "tiles": 4,
+    "pixels": 112000,
+    "scene_files": 282,
+    "scene_bytes": 496088074,
+    "s2_scenes": 22,
+    "s1_scenes": 20
+  },
+  "legacy": {
+    "wall_seconds": 55.01552079999965,
+    "wall_seconds_with_process_start": 57.23691449999751,
+    "http_requests": 3812,
+    "bytes_served": 763330434
+  },
+  "fast": {
+    "wall_seconds": 41.442977300001075,
+    "wall_seconds_with_process_start": 43.89882170000055,
+    "http_requests": 2754,
+    "bytes_served": 584621206
+  },
+  "speedup_wall": 1.3274992383329134,
+  "bytes_ratio_legacy_over_fast": 1.305683793481826,
+  "requests_ratio_legacy_over_fast": 1.3841684822076978,
+  "equivalence": {
+    "tiles_compared": 4,
+    "tiles_bitwise_equal": 4,
+    "parquet_bitwise_equal": true
+  }
+}

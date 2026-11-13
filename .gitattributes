@@ -1,0 +1,10 @@
+# r1 cache identity pin (dense127909-stream-legacy-exact-r1).
+# The r1 cache identity is the raw-byte SHA256 of these CODE_FILES (campaign/streaming.py).
+# These line endings reproduce, byte for byte, the files running in the university
+# production checkout (2026-11-12), so a fresh checkout on ANY OS can resume r1 caches.
+# Do not widen to *.py: the production r1 sources have mixed line endings.
+src/biomap_v2/campaign/streaming.py text eol=lf
+src/biomap_v2/raster_cache.py text eol=crlf
+src/biomap_v2/data.py text eol=crlf
+src/biomap_v2/reference.py text eol=crlf
+src/biomap_v2/encoder.py text eol=crlf

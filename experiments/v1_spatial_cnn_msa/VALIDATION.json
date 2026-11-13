@@ -1,0 +1,54 @@
+{
+  "date": "2026-11-11",
+  "branch": "experiment/v1-spatial-cnn-msa",
+  "base_commit": "e720ad0c365ed55e29c4439c7a7e63a92f34cb54",
+  "scope": "experiments/v1_spatial_cnn_msa/ only",
+  "platform_tested": "macOS, Python 3.12, PyTorch 2.10.0, CPU, one Torch thread",
+  "tests": {
+    "command": "python -m pytest -ra tests experiments/v1_spatial_cnn_msa/tests",
+    "passed": 118,
+    "experiment_tests": 21,
+    "existing_repository_tests": 97,
+    "failed": 0,
+    "warnings": 1272,
+    "seconds": 52.85,
+    "scientific_metrics": false,
+    "notes": "Synthetic CPU tests, including spatial cache/CV/refit/evaluation, exact interrupted-versus-continuous MLP weights, profiling, HTTP resume and read-only monitor. Warnings include Affine array-operation pending deprecations."
+  },
+  "real_geometry_audit": {
+    "cells": 2,
+    "fragments": [
+      {"cell_id": "16454:68226", "tile": "grid_9.55_44.25", "height": 31, "width": 23, "valid": 707, "total": 707},
+      {"cell_id": "16454:68227", "tile": "grid_9.55_44.25", "height": 31, "width": 23, "valid": 683, "total": 683}
+    ],
+    "missing": [],
+    "invalid": [],
+    "full_cache_built": false,
+    "model_fit": false
+  },
+  "source_endpoint_checks": {
+    "method": "HTTP HEAD only; no payload download",
+    "embedding": {"status": 200, "content_length": 114849920, "url": "https://data.source.coop/tessera/tessera/npy/v1/2020/grid_9.55_44.35/grid_9.55_44.35.npy"},
+    "scales": {"status": 200, "content_length": 3589184, "url": "https://data.source.coop/tessera/tessera/npy/v1/2020/grid_9.55_44.35/grid_9.55_44.35_scales.npy"},
+    "landmask": {"status": 200, "content_length": 16312, "url": "https://data.source.coop/tessera/tessera/landmasks/v1/grid_9.55_44.35.tiff"},
+    "certifies_complete_coverage": false
+  },
+  "default_parameter_counts": {"spatial_cnn": 94561, "mean_mlp": 10369, "encoder_loaded": false},
+  "local_preflight": {
+    "status": "BLOCKED",
+    "reasons": ["Fresh data root has no acquired targets", "Approximately 15 GiB free, below configured 20 GiB reserve"],
+    "cuda_available": false,
+    "certifies_university_readiness": false
+  },
+  "not_executed": [
+    "Native Windows PowerShell setup and workflow",
+    "RTX 5080 CUDA forward/backward and microbatch profiling",
+    "Full target/tile downloads",
+    "Full spatial extraction",
+    "Scientific pilot/intermediate/full training",
+    "Merge into main or Session A"
+  ],
+  "running_v2_process_commands_sent": false,
+  "session_a_files_modified": false,
+  "scientific_improvement_demonstrated": false
+}

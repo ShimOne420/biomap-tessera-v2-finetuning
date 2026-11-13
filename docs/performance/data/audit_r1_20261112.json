@@ -1,0 +1,51 @@
+{
+  "tiles_logged": 63,
+  "tiles_fresh": 61,
+  "tiles_reused_from_cache": 2,
+  "wall_hours_fresh": 9.04919690400023,
+  "acquire_share_of_wall": 0.7952477677834661,
+  "encode_ms_per_pixel_large_tiles": 0.32738775772733797,
+  "fixed_seconds_per_tile_fit": 231.89376521343098,
+  "ms_per_pixel_fit": 0.9045399167748551,
+  "reader_remote_read_seconds_per_block_thread_summed": 1.2561564109459524,
+  "reader_remote_open_seconds_per_open_thread_summed": 0.15320187162343582,
+  "reader_requests_per_tile_mean": 651.0983606557377,
+  "reader_failures_total": 1,
+  "reader_retries_total": 1,
+  "reader_decoded_gb_total": 171.4810548,
+  "coordinate_transform_thread_summed_s_large_mean": 867.8891987126503,
+  "bins": {
+    "<10k": {
+      "tiles": 14,
+      "pixels_mean": 3990.714285714286,
+      "acquire_mean_s": 212.2859282071669,
+      "encode_mean_s": 1.8723996785702184,
+      "pixels_per_wall_second": 18.63441092911179,
+      "gpu_idle_fraction": 0.9912569373460498
+    },
+    "10k-100k": {
+      "tiles": 21,
+      "pixels_mean": 26132.428571428572,
+      "acquire_mean_s": 247.14674568571354,
+      "encode_mean_s": 8.137001909529014,
+      "pixels_per_wall_second": 102.36620551678071,
+      "gpu_idle_fraction": 0.968125656309189
+    },
+    "100k-600k": {
+      "tiles": 10,
+      "pixels_mean": 490063.4,
+      "acquire_mean_s": 547.7284612700344,
+      "encode_mean_s": 198.08370297995862,
+      "pixels_per_wall_second": 657.0868959918612,
+      "gpu_idle_fraction": 0.7344053737992374
+    },
+    ">=600k": {
+      "tiles": 16,
+      "pixels_mean": 929466.9375,
+      "acquire_mean_s": 766.7189893937862,
+      "encode_mean_s": 280.7692557312439,
+      "pixels_per_wall_second": 887.3292295409551,
+      "gpu_idle_fraction": 0.731959516454783
+    }
+  }
+}

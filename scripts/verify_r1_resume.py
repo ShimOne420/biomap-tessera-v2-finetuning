@@ -16,13 +16,17 @@
 #      identità del marker == {protocol r1, SHA256 di geometry.npz, 2020, checkpoint, fp32, codice attuale};
 #      SHA256 di tile.npz == marker; array cell/sums/counts leggibili, coerenti, finiti, conteggi > 0.
 #      Qualsiasi differenza = la r1 solleverebbe "Cache incompatibile/corrotta" alla ripresa.
-#   4. Tile in corso: cartelle tmp/<aoi>/<tile> con giorni e blocchi codificati già salvati (riusati).
+#   4. Tile in corso: nomi delle cartelle tmp/<aoi>/<tile>. Il conteggio dei giorni e dei blocchi codificati
+#      salvati (elenco di days/ ed encoded/) si fa SOLO con --tmp-details, da usare a campagna FERMA: a fine
+#      tile la r1 cancella tmp/<aoi>/<tile> con shutil.rmtree senza ritentativi e un elenco concorrente
+#      dell'interno può far fallire rmdir su Windows e fermare il run (modifica del 12/11/2026).
 #   5. Argomenti dell'ultimo avvio (last_invocation.json): da riusare identici al riavvio.
 # INPUT E OUTPUT
 #   Input (sola lettura, condivisione completa): reference.json, geometry.npz, chunks/, tmp/, codice,
 #   checkpoint, last_invocation.json. Output: testo e, se richiesto, JSON fuori dalla work-root.
 # PARAMETRI
 #   --checkpoint per verificare anche i pesi (legge ~84 MB).
+#   --tmp-details conta giorni e blocchi salvati della tile in corso: SOLO a campagna ferma.
 # RISORSE
 #   Legge i tile.npz completati e i geometry.npz corrispondenti (qualche centinaio di MB in tutto).
 # RIPRESA
@@ -45,7 +49,7 @@ CODE_FILES_R1 = ['src/biomap_v2/campaign/streaming.py', 'src/biomap_v2/raster_ca
 WEIGHTS_SHA256 = '3823be7db9d9cfc93f3c2a47c7699be82821ab4e1117d4d2befdb746941ee96e'
 
 
-def verify(reference, work, repo, checkpoint=None):
+def verify(reference, work, repo, checkpoint=None, tmp_details=False):
     reference, work, repo = Path(reference), Path(work), Path(repo)
     problems, warnings = [], []
     code = {name: sha256_file(repo / name) for name in CODE_FILES_R1}
@@ -87,9 +91,11 @@ def verify(reference, work, repo, checkpoint=None):
     tmp = work / 'tmp'
     if tmp.exists():
         for folder in sorted(p for p in tmp.glob('*/*') if p.is_dir()):
-            days = list((folder / 'days').glob('*.json')) if (folder / 'days').exists() else []
-            encoded = list((folder / 'encoded').glob('*.json')) if (folder / 'encoded').exists() else []
-            in_progress.append({'tile': f'{folder.parent.name}/{folder.name}', 'days_saved': len(days), 'encoded_blocks_saved': len(encoded)})
+            entry = {'tile': f'{folder.parent.name}/{folder.name}'}
+            if tmp_details:
+                entry['days_saved'] = len(list((folder / 'days').glob('*.json'))) if (folder / 'days').exists() else 0
+                entry['encoded_blocks_saved'] = len(list((folder / 'encoded').glob('*.json'))) if (folder / 'encoded').exists() else 0
+            in_progress.append(entry)
     invocation = json.loads(read_text(work / 'last_invocation.json')) if (work / 'last_invocation.json').exists() else {}
     if len(in_progress) > 1:
         warnings.append('Più di una tile con temporanei: normale solo se una tile è stata interrotta in passato')
@@ -107,8 +113,9 @@ def main():
     p.add_argument('--production-repo', required=True)
     p.add_argument('--checkpoint')
     p.add_argument('--json')
+    p.add_argument('--tmp-details', action='store_true')
     args = p.parse_args()
-    result = verify(args.reference, args.work_root, args.production_repo, args.checkpoint)
+    result = verify(args.reference, args.work_root, args.production_repo, args.checkpoint, args.tmp_details)
     print(json.dumps({k: v for k, v in result.items() if k != 'code_identity_current'}, indent=2))
     print('RIPRESA SICURA' if result['ok'] else 'ATTENZIONE: NON RIAVVIARE PRIMA DI AVER CAPITO I PROBLEMI SOPRA')
     if args.json:

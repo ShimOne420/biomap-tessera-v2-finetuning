@@ -36,6 +36,11 @@ def test_cv_refit_external_registry_and_inference_without_labels(tmp_path):
         selection=json.loads((run/'selection.json').read_text())
         assert selection['liguria_used'] is False
         assert len(pd.read_parquet(run/'predictions.parquet'))==12  # six dev, predictor + Dummy
+        original=(run/'selection.json').read_bytes()
+        changed=dict(selection,refit_epochs=selection['refit_epochs']+1)
+        (run/'selection.json').write_text(json.dumps(changed))
+        with pytest.raises(ValueError,match='Selezione'):train(spec,source,'cnn','refit')
+        (run/'selection.json').write_bytes(original)
         train(spec,source,'cnn','refit')
         saved=torch.load(run/'checkpoint.pt',weights_only=False)
         assert set(saved['normalizer']['training_ids'])==set(source.frame[source.frame.partition=='train'].cell_id)
@@ -54,6 +59,12 @@ def test_cv_refit_external_registry_and_inference_without_labels(tmp_path):
         assert set(results)==set(frame.cell_id)
     finally:source.close()
     assert before=={name:digest(Path(name)) for name in before}
+
+
+def test_determinism_environment_is_set_without_cuda_initialization():
+    import subprocess,sys
+    code="import os; os.environ.pop('CUBLAS_WORKSPACE_CONFIG',None); import biomap_spatial.engine; import torch; assert os.environ['CUBLAS_WORKSPACE_CONFIG']==':4096:8'; assert not torch.cuda.is_initialized()"
+    subprocess.run([sys.executable,'-c',code],check=True)
 
 
 def test_epoch_resume_is_exact_and_feature_space_change_is_rejected(tmp_path):

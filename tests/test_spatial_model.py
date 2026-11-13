@@ -11,7 +11,7 @@ import torch
 
 from biomap_spatial.batching import collate_cells
 from biomap_spatial.contracts import ModelConfig
-from biomap_spatial.model import SpatialCNN
+from biomap_spatial.model import SpatialCNN,MeanMLP
 from biomap_spatial.normalization import fit_normalizer,transform
 from biomap_spatial.utils import legacy,save_json
 
@@ -65,6 +65,18 @@ def test_direct_128_matches_legacy_forward_and_gradients_exactly():
         torch.testing.assert_close(ap.grad,bp.grad,rtol=0,atol=0)
     inference=dict(batch);inference.pop('target')
     torch.testing.assert_close(new(inference),a.detach(),rtol=0,atol=0)
+
+
+def test_mean_mlp_default_parity_and_custom_width_are_honored():
+    config=ModelConfig(architecture='mean_mlp',dropout=0)
+    old=legacy('model').MeanMLP({'dropout':0.,'output':'linear'})
+    model=MeanMLP(config);model.load_state_dict(old.state_dict(),strict=True)
+    batch=batch_for()
+    torch.testing.assert_close(model(batch),old(batch),rtol=0,atol=0)
+    custom=MeanMLP(replace(config,hidden=48,conv_channels=(64,24)))
+    assert custom.description()['hidden_dimensions']==[48,24]
+    assert custom.description()['trainable_parameters']!=model.description()['trainable_parameters']
+    assert custom(batch).shape==(2,)
 
 
 def moments_frame():

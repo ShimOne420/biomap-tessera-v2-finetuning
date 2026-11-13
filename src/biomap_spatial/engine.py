@@ -7,6 +7,9 @@
 from dataclasses import asdict
 import json
 import math
+import os
+# Must precede CUDA initialization for deterministic Linear/attention GEMM on the university GPU.
+os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG',':4096:8')
 from pathlib import Path
 import random
 import time
@@ -102,7 +105,10 @@ def run_identity(spec,source):
 def run_path(spec,run_id):
     if not run_id or Path(run_id).name!=run_id or any(x in run_id for x in [':','/','\\']) or run_id in {'.','..','index','comparisons'}:
         raise ValueError('run_id deve essere un nome semplice e non riservato')
-    return Path(spec.execution['output_root'])/run_id
+    root=Path(spec.execution['output_root']).resolve()
+    path=(root/run_id).resolve()
+    if root not in path.parents:raise ValueError('Run fuori dalla output-root')
+    return path
 
 
 def registry(spec,source,run_id,create=False):
@@ -113,6 +119,8 @@ def registry(spec,source,run_id,create=False):
         saved=json.loads(manifest.read_text())
         if saved['identity']!=identity or saved['feature_space_id']!=source.feature_space_id:
             raise ValueError('Run/checkpoint di un altro feature space, protocollo, codice o dataset')
+        if saved['config_sha256']!=digest(run/'config.yaml'):
+            raise ValueError('Configurazione effettiva del run alterata')
     else:
         if not create:raise FileNotFoundError('Run non inizializzato')
         run.mkdir(parents=True,exist_ok=True)
@@ -122,6 +130,7 @@ def registry(spec,source,run_id,create=False):
             'encoder':getattr(source,'encoder',spec.source.get('encoder','geotessera_v2')),'adapter':type(source).__name__+'/'+source.protocol,
             'protocol':asdict(spec.protocol),'model':asdict(spec.model),'source_representation':'spatial',
             'commit':git_commit(),'code_sha256':code_identity(),'device':spec.execution['device'],
+            'config_sha256':digest(run/'config.yaml'),
             'precision':'amp_float16' if spec.training.get('mixed_precision') else 'fp32',
             'state':'created','scientific_result':spec.protocol.profile=='benchmark','encoder_frozen':True,
             'torch':torch.__version__,'numpy':np.__version__}
@@ -130,6 +139,8 @@ def registry(spec,source,run_id,create=False):
 
 
 def write_state(run,manifest,state,**extra):
+    if state=='running':
+        manifest.pop('error',None);manifest.pop('reason',None)
     manifest.update(state=state,**extra)
     save_json(run/'manifest.json',manifest)
 
@@ -290,6 +301,7 @@ def metrics_report(predictions,run,prefix):
 
 def train(spec,source,run_id,phase,resume=False,epoch_limit=None):
     run,manifest=registry(spec,source,run_id,create=True)
+    if manifest['state']=='complete':raise FileExistsError('Run finalizzato: usare un nuovo run-id per nuovo training')
     identity=manifest['identity']
     if phase=='cv' and (run/'fold_0').exists() and not resume:
         raise FileExistsError('Run CV esistente: --resume oppure nuovo run-id')
@@ -331,11 +343,14 @@ def train(spec,source,run_id,phase,resume=False,epoch_limit=None):
                 'refit_epochs':max(1,int(np.median(best_epochs))),'fold_best_epochs':best_epochs,'liguria_used':False,
                 'oof_sha256':digest(run/'predictions.parquet')}
             save_json(run/'selection.json',selection)
+            save_json(run/'cv_complete.json',{'identity':identity,'selection_sha256':digest(run/'selection.json'),
+                'oof_sha256':selection['oof_sha256'],'metrics_sha256':digest(run/'oof_metrics.json')})
             write_state(run,manifest,'cv_complete')
         elif phase=='refit':
             progress.update(force=True,phase='refit',jobs_done=0,jobs_total=1)
             selection=json.loads((run/'selection.json').read_text())
-            if selection['identity']!=identity or selection['oof_sha256']!=digest(run/'predictions.parquet'):
+            cv=json.loads((run/'cv_complete.json').read_text())
+            if cv['identity']!=identity or cv['selection_sha256']!=digest(run/'selection.json') or selection['identity']!=identity or selection['oof_sha256']!=digest(run/'predictions.parquet'):
                 raise ValueError('Selezione OOF non valida')
             from dataclasses import replace
             local=replace(spec,training={**spec.training,'epochs':selection['refit_epochs']})
@@ -399,7 +414,8 @@ def compare_runs(spec,source,names,label):
     for name in names:
         run=run_path(spec,name);manifest=json.loads((run/'manifest.json').read_text())
         selection=json.loads((run/'selection.json').read_text())
-        if manifest['source_fingerprint']!=source.fingerprint or manifest['support_identity']!=source.index_identity or selection['identity']!=manifest['identity'] or selection['oof_sha256']!=digest(run/'predictions.parquet'):
+        cv=json.loads((run/'cv_complete.json').read_text())
+        if cv['selection_sha256']!=digest(run/'selection.json') or manifest['source_fingerprint']!=source.fingerprint or manifest['support_identity']!=source.index_identity or selection['identity']!=manifest['identity'] or selection['oof_sha256']!=digest(run/'predictions.parquet'):
             raise ValueError('Run non comparabili o predizioni alterate')
         preds=pd.read_parquet(run/'predictions.parquet');preds=preds[preds.model=='predictor'].sort_values('cell_id')
         current=signature(preds[['cell_id','target','aoi_id','cv_fold','n_valid']].to_dict('records'))
@@ -421,7 +437,7 @@ def profile(spec,source):
     # Real complete-data preflight already passed; this sample is technical, never a scientific run.
     sample=frame.head(spec.training['batch_cells']).copy()
     norm=fit_normalizer(frame,spec.protocol.normalization)
-    device=check_device(spec);model=make_model(spec.model).to(device)
+    device=check_device(spec);seed_all(spec.protocol.seed,device);model=make_model(spec.model).to(device)
     batch=device_batch(next(iter(make_loader(source,sample,norm,spec))),device)
     if device.type=='cuda':torch.cuda.reset_peak_memory_stats(device)
     began=time.perf_counter();loss=(model(batch)-batch['target']).square().mean();loss.backward()

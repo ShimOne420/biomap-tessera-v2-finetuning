@@ -88,8 +88,9 @@ class MeanMLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.layers = nn.Sequential(nn.Linear(config.input_channels, 64), nn.GELU(), nn.Dropout(config.dropout),
-            nn.Linear(64, 32), nn.GELU(), nn.Linear(32, 1))
+        width=config.conv_channels[-1]
+        self.layers = nn.Sequential(nn.Linear(config.input_channels, config.hidden), nn.GELU(), nn.Dropout(config.dropout),
+            nn.Linear(config.hidden, width), nn.GELU(), nn.Linear(width, 1))
 
     def forward(self, batch):
         out = self.layers(batch['mean']).squeeze(-1)
@@ -97,7 +98,7 @@ class MeanMLP(nn.Module):
 
     def description(self):
         return {'trainable_parameters':sum(p.numel() for p in self.parameters()),'representation':'same_support_mean',
-                'input_channels':self.config.input_channels,'hidden_dimensions':[64,32],'receptive_field':None}
+                'input_channels':self.config.input_channels,'hidden_dimensions':[self.config.hidden,self.config.conv_channels[-1]],'receptive_field':None}
 
 
 def make_model(config):

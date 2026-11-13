@@ -20,10 +20,13 @@ winget install --id Python.Python.3.12 -e
 Aprire un nuovo PowerShell dopo l'installazione. Finché la PR non è stata integrata, il codice è sul branch pubblicato:
 
 ```powershell
+$ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force 'C:\BIOMAP' | Out-Null
 git clone --branch feature/spatial-cnn-v2 https://github.com/ShimOne420/biomap-tessera-v2-finetuning.git 'C:\BIOMAP\spatial-code'
+if ($LASTEXITCODE -ne 0) { throw 'Clone fallito o cartella gia esistente: non proseguire in un altro checkout' }
 Set-Location 'C:\BIOMAP\spatial-code'
 py -3.12 -m venv .venv-spatial
+if ($LASTEXITCODE -ne 0) { throw 'Creazione ambiente non riuscita' }
 $SpatialPython = (Resolve-Path '.\.venv-spatial\Scripts\python.exe').Path
 & $SpatialPython -m pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cu128
 if ($LASTEXITCODE -ne 0) { throw 'Installazione Torch fallita' }

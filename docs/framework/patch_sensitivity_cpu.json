@@ -1,0 +1,54 @@
+{
+  "source_test": "tests/test_spatial_model.py::test_patch_fragmentation_records_context_sensitivity",
+  "torch_seed": 7,
+  "input_numpy_seed": 3,
+  "channels": 32,
+  "input_shape": [
+    32,
+    8,
+    8
+  ],
+  "device": "cpu",
+  "trained": false,
+  "scientific_result": false,
+  "results": [
+    {
+      "kernel": 3,
+      "patch_counts": [
+        1,
+        2,
+        4
+      ],
+      "predictions": [
+        0.03453713655471802,
+        0.03392670303583145,
+        0.03644678741693497
+      ],
+      "delta": [
+        0.0,
+        -0.0006104335188865662,
+        0.0019096508622169495
+      ],
+      "scientific_result": false
+    },
+    {
+      "kernel": 1,
+      "patch_counts": [
+        1,
+        2,
+        4
+      ],
+      "predictions": [
+        -0.10304028540849686,
+        -0.10304027795791626,
+        -0.10304028540849686
+      ],
+      "delta": [
+        0.0,
+        7.450580596923828e-09,
+        0.0
+      ],
+      "scientific_result": false
+    }
+  ]
+}

@@ -54,6 +54,10 @@ def validate_frame(frame, profile):
 
 def inventory(spec):
     source = spec.source
+    if source.get('kind') == 'v1_index':
+        path=Path(source['root']) if source.get('root') else None
+        present=path is not None and path.is_file() and path.with_suffix('.manifest.json').is_file()
+        return {'status':'PRESENT_NOT_VERIFIED' if present else 'BLOCKED','integrity_verified':False,'adapter':'V1IndexSource'}
     if not source.get('root') or not source.get('reference'):
         return {'status': 'BLOCKED', 'reason': 'Impostare --source-root e --reference', 'integrity_verified': False}
     root, ref = Path(source['root']), Path(source['reference'])
@@ -99,7 +103,7 @@ class V1TileAdapter:
         self.scales = np.load(scales, mmap_mode='r', allow_pickle=False)
         with rasterio.open(geotiff) as ds:
             self.grid = Grid(ds.height, ds.width, tuple(ds.transform), str(ds.crs))
-        if self.embedding.dtype != np.int8 or self.embedding.ndim != 3 or self.scales.shape != self.embedding.shape[:2]:
+        if self.embedding.dtype != np.int8 or self.embedding.ndim != 3 or self.scales.dtype != np.float32 or self.scales.shape != self.embedding.shape[:2]:
             raise ValueError('V1 richiede int8 HWC e scale HW')
         if self.embedding.shape[:2] != (self.grid.height, self.grid.width):
             raise ValueError('Georeferenziazione V1 incompatibile')
@@ -155,7 +159,7 @@ class V2Source:
         if final_frame.cell_id.duplicated().any() or set(final_frame.cell_id) != set(self.frame.cell_id) or len(self.frame) != self.completion['n_cells']:
             raise ValueError('Celle finali diverse dal reference')
         paired = self.frame.merge(final_frame, on='cell_id', validate='one_to_one', suffixes=('_ref', '_v2'))
-        for key in ['target', 'aoi_id', 'partition', 'cv_fold', 'n_valid']:
+        for key in ['target', 'aoi_id', 'partition', 'cv_fold', 'n_valid', 'reference_index', 'lon', 'lat']:
             if key not in final_frame or not np.array_equal(paired[key+'_ref'], paired[key+'_v2']):
                 raise ValueError('Target/split/supporto finali discordanti: ' + key)
         self.frame = self.frame[[c for c in self.frame if not c.startswith('mean_')]].copy()
@@ -194,7 +198,7 @@ class V2Source:
                     raise ValueError('Sidecar r2 non corrispondente')
                 with np.load(geometry_path, allow_pickle=False) as z:
                     flat, cell_ids = z['flat_indices'], z['cell_ids']
-                if flat.ndim != 1 or len(flat) != info['pixels'] or len(flat) == 0 or len(flat) != len(cell_ids) or flat.dtype.kind not in 'iu' or (np.diff(flat) <= 0).any() or flat[0] < 0 or flat[-1] >= grid.height * grid.width:
+                if flat.ndim != 1 or len(flat) != info['pixels'] or len(flat) == 0 or len(flat) != len(cell_ids) or flat.dtype.kind not in 'iu' or not (flat[1:] > flat[:-1]).all() or flat[0] < 0 or flat[-1] >= grid.height * grid.width:
                     raise ValueError('Ordine/indici geometria non validi')
                 lookup_path = local_path(self.reference, area['aoi_id'] + '/lookup.npy')
                 lookup = np.load(lookup_path, allow_pickle=False)
@@ -223,9 +227,10 @@ class V2Source:
         if not marker.is_file() or not self.index.is_file():
             raise ValueError('Indice assente: eseguire prepare')
         info = json.loads(marker.read_text())
-        if info['identity'] != self.index_identity or info['sha256'] != digest(self.index) or info['frame_sha256'] != digest(self.output / 'cells.parquet'):
+        if info.get('complete') is not True or info['identity'] != self.index_identity or info['sha256'] != digest(self.index) or info['frame_sha256'] != digest(self.output / 'cells.parquet'):
             raise ValueError('Indice/config/sorgente incompatibili: usare output-root separata')
         self.frame = pd.read_parquet(self.output / 'cells.parquet')
+        if self.db is not None:self.db.close()
         self.db = sqlite3.connect(self.index.resolve().as_uri() + '?mode=ro', uri=True)
 
     def tile(self, key):
@@ -373,3 +378,87 @@ def prepare_index(source, progress=lambda **kw: None):
         'frame_sha256':digest(out/'cells.parquet'),'source':source.fingerprint,'complete':True})
     source._load_index()
     return source.frame
+
+
+class V1IndexSource:
+    """Read-only adapter for the finalized SQLite format already produced by Experiment B."""
+    def __init__(self,spec,output,require_index=True):
+        self.spec=spec
+        self.index=Path(spec.source['root']).resolve()
+        separate_output(output,[self.index.parent])
+        marker=self.index.with_suffix('.manifest.json')
+        if not marker.is_file() or json.loads(marker.read_text())['sha256']!=digest(self.index):
+            raise ValueError('Indice V1 B non finalizzato/corrotto')
+        self.db=sqlite3.connect(self.index.as_uri()+'?mode=ro',uri=True)
+        self.maps=OrderedDict()
+        self.feature_space_id=spec.source['feature_space_id']
+        self.channels=spec.model.input_channels
+        self.protocol='legacy-B-V1-native-center-support'
+        self.encoder='geotessera_v1'
+        try:
+            info={k:json.loads(v) for k,v in self.db.execute('SELECT key,value FROM meta')}
+            if info.get('finalized') is not True:raise ValueError('Cache B non finalizzata')
+            rows=self.db.execute('SELECT cell_id,aoi_id,partition,cv_fold,lon,lat,target,n_total,n_valid,valid_fraction,mean,variance,(SELECT count(*) FROM patches p WHERE p.cell_id=cells.cell_id) FROM cells WHERE eligible=1 ORDER BY cell_id').fetchall()
+            self.frame=pd.DataFrame(rows,columns=['cell_id','aoi_id','partition','cv_fold','lon','lat','target','n_total','n_valid','valid_fraction','mean','variance','patches'])
+            for key in ['mean','variance']:
+                self.frame[key]=[np.frombuffer(v,dtype=np.float32).copy() for v in self.frame[key]]
+                if any(v.shape!=(self.channels,) or not np.isfinite(v).all() for v in self.frame[key]):raise ValueError('Momenti/C V1 incompatibili')
+            self.frame['reference_index']=np.arange(len(self.frame))
+            self.frame['heterogeneity']=[float(v.mean()) for v in self.frame.variance]
+            validate_frame(self.frame,spec.protocol.profile)
+            self.tiles={}
+            for key,raw in self.db.execute('SELECT tile_id,spec FROM tiles WHERE complete=1'):
+                tile=json.loads(raw)
+                for name in ['embedding','scales','landmask']:
+                    if digest(Path(tile[name]))!=tile['sha256'][name]:raise ValueError('Sorgente V1 mutata')
+                adapter=V1TileAdapter(tile['embedding'],tile['scales'],tile['landmask'],self.feature_space_id)
+                if adapter.embedding.shape[2]!=self.channels:raise ValueError('Canali V1 differenti dalla configurazione')
+                tile['grid']=adapter.grid
+                self.tiles[key]=tile
+            duplicates=[]
+            for cell in self.frame.itertuples():
+                parts=[]
+                for key,row,col,h,w,packed,n in self.db.execute('SELECT tile_id,row0,col0,height,width,mask,n_valid FROM patches WHERE cell_id=?',(cell.cell_id,)):
+                    mask=np.unpackbits(np.frombuffer(packed,dtype=np.uint8),count=h*w).reshape(h,w).astype(bool)
+                    if int(mask.sum())!=n:raise ValueError('Conteggio/mask V1 discordanti')
+                    parts.append((self.tiles[key]['grid'],row,col,mask))
+                audit=overlap_report(parts)
+                if audit['contributions']!=cell.n_valid:raise ValueError('Cella V1 con supporto incompleto')
+                duplicates.append(audit['duplicate_contributions'])
+            self.frame['duplicate_contributions']=duplicates
+            self.fingerprint=signature({'cache':digest(self.index),'tiles':{k:v['sha256'] for k,v in self.tiles.items()},'feature_space_id':self.feature_space_id})
+            self.index_identity=self.fingerprint
+        except BaseException:
+            self.close();raise
+
+    def patches(self,cell_id):
+        result=[]
+        for key,row,col,h,w,packed,n in self.db.execute('SELECT tile_id,row0,col0,height,width,mask,n_valid FROM patches WHERE cell_id=? ORDER BY patch_id',(cell_id,)):
+            if key not in self.maps:
+                t=self.tiles[key]
+                self.maps[key]=V1TileAdapter(t['embedding'],t['scales'],t['landmask'],self.feature_space_id)
+                while len(self.maps)>self.spec.source.get('mmap_limit',4):self.maps.popitem(last=False)
+            self.maps.move_to_end(key)
+            mask=np.unpackbits(np.frombuffer(packed,dtype=np.uint8),count=h*w).reshape(h,w).astype(bool)
+            patch=self.maps[key].patch(row,col,mask)
+            if int(patch.mask.sum())!=n:raise ValueError('Supporto V1 mutato rispetto all indice')
+            result.append(patch)
+        if not result:raise ValueError('Cella V1 priva di patch')
+        return result
+
+    def close(self):
+        if self.db is not None:self.db.close();self.db=None
+        self.maps.clear()
+
+    def __getstate__(self):
+        state=dict(self.__dict__);state['db']=None;state['maps']=OrderedDict()
+        return state
+
+    def __setstate__(self,state):
+        self.__dict__.update(state)
+        self.db=sqlite3.connect(self.index.as_uri()+'?mode=ro',uri=True)
+
+
+def make_source(spec,output,require_index=True):
+    cls=V1IndexSource if spec.source.get('kind')=='v1_index' else V2Source
+    return cls(spec,output,require_index)

@@ -25,3 +25,7 @@ outputs/dense_benchmark/
 
 # Separate cached-head experiment; models and predictions are never source code.
 /outputs/v2_dense_cnn_msa/
+
+# Spatial CNN: ambiente e artefatti privati del nuovo percorso opt-in.
+.venv-spatial/
+/outputs/biomap_framework/

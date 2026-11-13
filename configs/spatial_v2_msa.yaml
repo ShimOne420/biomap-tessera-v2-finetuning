@@ -1,0 +1,45 @@
+# Nuovo percorso prioritario: embedding V2 per pixel -> Spatial CNN. Nessuna acquisizione implicita.
+# Root di input read-only, output separato. Non usare questo file per modificare la campagna r1.
+source:
+  kind: v2_pixels
+  representation: spatial
+  encoder: geotessera_v2_medium
+  feature_space_id: geotessera_v2_medium_3823be7db9d9cfc93f3c2a47c7699be82821ab4e1117d4d2befdb746941ee96e
+  protocol: dense127909-stream-legacy-exact-r1  # r2-fast solo con i suoi artefatti/schema verificati
+  root: null       # work-root dell'estrazione COMPLETATA, contiene pixel_embeddings
+  reference: null  # reference congelata con reference.json, geometrie e target
+  resolution: [10, 10]  # reticolo nativo V1 ereditato dalla reference, metri
+  max_patch_side: 64    # nessun halo/resizing: cambiare il lato cambia il contesto della CNN
+  mmap_limit: 4
+model:
+  architecture: spatial_cnn  # mean_mlp e solo la baseline sugli stessi pixel
+  input_channels: 128
+  projection_channels: null # direct; per projected impostare 64
+  kernel: 3                # 1 = controllo pixelwise, 3 = vicinato; niente Residual CNN
+  conv_channels: [64, 32]
+  hidden: 64
+  dropout: 0.1
+  output: linear           # alternativa sigmoid selezionata soltanto sulla CV
+protocol:
+  dataset: biomap_globio4
+  target: globio4_msa_2020
+  year: 2020
+  profile: benchmark       # 127909 sviluppo / 17 AOI / 3 fold + 4991 Liguria
+  normalization: pixel_weighted_standard # cell_standard solo con mean_mlp; none esplicito
+  support: preserve_legacy_contributions
+  seed: 42                 # repliche 43/44 con run-id distinti
+  selection: oof_macro_aoi_rmse
+training:
+  epochs: 50
+  patience: 8
+  batch_cells: 4
+  accumulate_cells: 16
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  clip_grad: 1.0
+  num_workers: 0           # Windows: partire senza worker; massimo configurabile 4
+  mixed_precision: false   # prima profile FP32, poi AMP CUDA con nuova identita/run
+execution:
+  device: cuda:0
+  output_root: outputs/biomap_framework  # cartella nuova, non dentro sorgente/reference
+  reserve_gib: 20

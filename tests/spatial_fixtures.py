@@ -46,8 +46,7 @@ def make_artifacts(tmp_path, protocol=R1, channels=128):
             records.append(record);means.append(sums[i]/4)
     frame=pd.DataFrame(records)
     frame.to_parquet(ref/'v1.parquet',index=False)
-    v2=frame.copy()
-    for k in range(channels):v2[f'mean_{k:03d}']=np.stack(means)[:,k]
+    v2=pd.concat([frame,pd.DataFrame(np.stack(means),columns=[f'mean_{k:03d}' for k in range(channels)])],axis=1)
     v2.to_parquet(work/'v2.parquet',index=False)
     save_json(ref/'reference.json',{'protocol':'dense127909-public-r1','areas':areas,
         'files':{str(p.relative_to(ref)):digest(p) for p in ref.rglob('*') if p.is_file()}})

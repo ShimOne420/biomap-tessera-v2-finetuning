@@ -60,7 +60,7 @@ class SpatialSample:
     metadata: dict
 
     def __post_init__(self):
-        if self.features.ndim != 3 or self.mask.shape != self.features.shape[1:] or self.mask.dtype != np.bool_:
+        if self.features.ndim != 3 or self.features.dtype != np.float32 or self.mask.shape != self.features.shape[1:] or self.mask.dtype != np.bool_:
             raise ValueError('SpatialSample richiede [C,H,W] e mask bool [H,W]')
         if not self.mask.any() or not np.isfinite(self.features[:, self.mask]).all():
             raise ValueError('Supporto vuoto o embedding validi non finiti')
@@ -74,7 +74,7 @@ class TabularSample:
     metadata: dict
 
     def __post_init__(self):
-        if self.features.ndim != 1 or not np.isfinite(self.features).all():
+        if self.features.ndim != 1 or not np.isfinite(self.features).all() or not self.metadata.get('feature_space_id'):
             raise ValueError('TabularSample richiede un vettore finito, non una mappa')
 
 

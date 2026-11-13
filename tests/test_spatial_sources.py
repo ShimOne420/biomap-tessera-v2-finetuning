@@ -90,3 +90,78 @@ def test_mean_representation_and_cell_standard_on_maps_are_rejected(tmp_path):
     with pytest.raises(ValueError,match='mappe'):replace(spec,source={**spec.source,'representation':'mean'})
     assert inventory(spec)['status']=='PRESENT_NOT_VERIFIED'
     assert inventory(replace(spec,source={**spec.source,'root':None}))['status']=='BLOCKED'
+
+
+def test_pixel_values_must_match_frozen_chunk_sums(tmp_path):
+    spec,ref,work,out=make_artifacts(tmp_path)
+    p=work/'pixel_embeddings/aoi_0/grid_test.npy'
+    x=np.load(p);x[0,0]+=1;np.save(p,x)
+    info=json.loads(p.with_suffix('.json').read_text());info['sha256']=digest(p);save_json(p.with_suffix('.json'),info)
+    source=V2Source(spec,out,False)
+    try:
+        with pytest.raises(ValueError,match='somme/conteggi'):prepare_index(source)
+        assert not source.index.with_suffix('.json').exists()
+    finally:source.close()
+
+
+def test_duplicate_native_centers_keep_legacy_multiplicity(tmp_path):
+    import pandas as pd
+    import shutil
+    spec,ref,work,out=make_artifacts(tmp_path)
+    shutil.copytree(ref/'aoi_0/grid_test',ref/'aoi_0/grid_duplicate')
+    shutil.copytree(work/'chunks/aoi_0/grid_test',work/'chunks/aoi_0/grid_duplicate')
+    for ext in ['.npy','.json']:shutil.copyfile(work/('pixel_embeddings/aoi_0/grid_test'+ext),work/('pixel_embeddings/aoi_0/grid_duplicate'+ext))
+    for path in [ref/'v1.parquet',work/'v2.parquet']:
+        frame=pd.read_parquet(path);frame.loc[frame.aoi_id=='aoi_0',['n_valid','n_total']]=8;frame.to_parquet(path,index=False)
+    plan=json.loads((ref/'reference.json').read_text());plan['areas'][0]['tiles'].append('grid_duplicate')
+    plan['files']={str(p.relative_to(ref)):digest(p) for p in ref.rglob('*') if p.is_file() and p.name!='reference.json'}
+    save_json(ref/'reference.json',plan)
+    proof=json.loads((work/'extraction_complete.json').read_text());proof['sha256']=digest(work/'v2.parquet');save_json(work/'extraction_complete.json',proof)
+    source=V2Source(spec,out,False)
+    try:
+        frame=prepare_index(source);part=frame[frame.aoi_id=='aoi_0']
+        assert part.n_valid.eq(8).all() and part.duplicate_contributions.eq(4).all() and part.patches.eq(2).all()
+    finally:source.close()
+
+
+def test_disk_reserve_blocks_prepare_without_losing_source(tmp_path,monkeypatch):
+    from collections import namedtuple
+    import biomap_spatial.utils as util
+    spec,ref,work,out=make_artifacts(tmp_path)
+    spec=replace(spec,execution={**spec.execution,'reserve_gib':20})
+    usage=namedtuple('Usage','total used free')
+    monkeypatch.setattr(util.shutil,'disk_usage',lambda p:usage(100*1024**3,90*1024**3,10*1024**3))
+    source=V2Source(spec,out,False)
+    try:
+        with pytest.raises(OSError,match='Spazio'):prepare_index(source)
+        assert not source.index.exists() and (work/'pixel_embeddings/aoi_0/grid_test.npy').exists()
+    finally:source.close()
+
+
+def test_v1_existing_index_adapter_is_read_only(tmp_path):
+    import pandas as pd
+    import sqlite3
+    from biomap_spatial.sources import V1IndexSource
+    from biomap_spatial.engine import preflight
+    spec,ref,work,out=make_artifacts(tmp_path)
+    root=tmp_path/'v1';root.mkdir();path=root/'spatial.sqlite3'
+    q=np.ones((2,4,128),np.int8);scale=np.ones((2,4),np.float32)
+    np.save(root/'q.npy',q);np.save(root/'s.npy',scale)
+    with rasterio.open(root/'land.tif','w',driver='GTiff',height=2,width=4,count=1,dtype='uint8',crs='EPSG:32632',transform=from_origin(500000,4800000,10,10)) as ds:ds.write(np.ones((1,2,4),np.uint8))
+    tile={'embedding':str(root/'q.npy'),'scales':str(root/'s.npy'),'landmask':str(root/'land.tif')}
+    tile['sha256']={k:digest(v) for k,v in tile.items()}
+    with sqlite3.connect(path) as db:
+        db.executescript('CREATE TABLE meta(key TEXT,value TEXT); CREATE TABLE tiles(tile_id TEXT,spec TEXT,complete INTEGER); CREATE TABLE cells(cell_id TEXT,aoi_id TEXT,partition TEXT,cv_fold INTEGER,lon REAL,lat REAL,target REAL,n_total INTEGER,n_valid INTEGER,valid_fraction REAL,mean BLOB,variance BLOB,eligible INTEGER); CREATE TABLE patches(patch_id INTEGER,cell_id TEXT,tile_id TEXT,row0 INTEGER,col0 INTEGER,height INTEGER,width INTEGER,mask BLOB,n_valid INTEGER);')
+        db.execute('INSERT INTO meta VALUES(?,?)',('finalized','true'))
+        db.execute('INSERT INTO tiles VALUES(?,?,?)',('tile',json.dumps(tile),1))
+        for j,r in pd.read_parquet(ref/'v1.parquet').iterrows():
+            db.execute('INSERT INTO cells VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(r.cell_id,r.aoi_id,r.partition,int(r.cv_fold),r.lon,r.lat,r.target,4,4,1.,np.ones(128,np.float32).tobytes(),np.zeros(128,np.float32).tobytes(),1))
+            db.execute('INSERT INTO patches VALUES(?,?,?,?,?,?,?,?,?)',(j,r.cell_id,'tile',0,0,2,2,np.packbits(np.ones((2,2),bool)).tobytes(),4))
+    save_json(path.with_suffix('.manifest.json'),{'sha256':digest(path)})
+    cfg=replace(spec,source={**spec.source,'kind':'v1_index','root':str(path),'reference':None,'feature_space_id':'v1-fixture'})
+    before=digest(path);source,report=preflight(cfg)
+    try:
+        np.testing.assert_array_equal(source.patches('c0')[0].features,np.ones((128,2,2),np.float32))
+        assert report['status']=='READY'
+    finally:source.close()
+    assert digest(path)==before

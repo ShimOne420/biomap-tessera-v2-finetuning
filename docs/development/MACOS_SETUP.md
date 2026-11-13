@@ -14,6 +14,16 @@ git rev-parse HEAD
 git worktree list
 ```
 
+Per una directory nuova, questi comandi creano il clone persistente fuori da iCloud. Se la destinazione esiste già, verificarla senza sovrascriverla:
+
+```bash
+mkdir -p "$HOME/Developer"
+git clone --single-branch --branch feature/mac-dev-infrastructure https://github.com/ShimOne420/biomap-tessera-v2-finetuning.git "$HOME/Developer/biomap-tessera-v2-finetuning"
+cd "$HOME/Developer/biomap-tessera-v2-finetuning"
+```
+
+Durante la validazione è emerso anche un secondo effetto di iCloud: il file `.pth` dell'installazione editable sul Desktop ha acquisito `UF_HIDDEN`. Il `site.py` di Python 3.12 ignora i `.pth` nascosti, causando `ModuleNotFoundError` pur con pacchetto installato e `pip check` corretto. Non lo aggiriamo aggiungendo `PYTHONPATH`: il clone e la venv persistenti sotto `~/Developer` evitano quel percorso sincronizzato. Una `.venv-dev` su Desktop non è l'ambiente definitivo raccomandato.
+
 Il lavoro infrastrutturale corrente è su `feature/mac-dev-infrastructure`. È stato avviato dalla versione integrata `cf9f06c`, perché durante la preparazione `main` era ancora `e720ad0c`. La PR espone la dipendenza dall'integrazione; non effettua un merge. Non assumere che un semplice pull di un main precedente includa gli esperimenti.
 
 ## 2. Python e venv privata su macOS
@@ -65,6 +75,8 @@ Il lock radice non è stato rigenerato. Non copiare il `pip freeze` del Mac nell
 Il primo comando controlla la sintassi, gli import del progetto installato e delle librerie, importa B in un processo isolato e verifica un piccolo forward/backward CPU. Rifiuta import provenienti da un altro clone. Nessun encoder o peso viene caricato.
 
 Il secondo esegue **tutti i test CPU standard**, inclusi `tests/`, contratto r1 e `experiments/v1_spatial_cnn_msa/tests/`. Non occorre ricordare un secondo percorso pytest. Il riepilogo `-ra` espone skip ed errori; non nasconde i warning.
+
+Il runner Ubuntu ha evidenziato una differenza numerica nel caso S1 storico di frontiera: la r1 produce `5097` dove il test richiede `5098`. Il controllo non viene saltato o allargato. `check_dev_environment.py` registra NumPy, dispatch `log10` e valore prima/dopo conversione, senza modificarli. La compatibilità degli import non implica identità numerica del preprocessing tra piattaforme; leggere gli esiti effettivi in [VALIDATION.md](VALIDATION.md).
 
 Il file storico `tests/review_acceleration_cases.py` resta diagnostico ed esplicitamente separato: afferma la presenza di difetti di una vecchia revisione e non è un criterio di accettazione. Il motivo e il suo esito separato sono documentati in [VALIDATION.md](VALIDATION.md).
 

@@ -45,6 +45,8 @@ Questa verifica prova la corrispondenza allo snapshot Git pubblicato. Il PC univ
 
 Restano attivi i test storici di preprocessing e quelli di equivalenza r1/r2 su raster sintetici. Nessun `CODE_FILE` r1 viene modificato dal lavoro infrastrutturale.
 
+La CI ha concretamente intercettato una divergenza preesistente nel caso `test_s1_storage_historical_convention`: sul runner Ubuntu il risultato intero è `5097`, mentre il riferimento storico è `5098`. macOS e Windows superano quel test. Non è un motivo per disabilitare Ubuntu, cambiare il riferimento o alterare i kernel NumPy della r1. Il controllo import ora registra versione NumPy, dispatch `log10` e il caso di frontiera per l'analisi, senza cambiarne l'aritmetica. Finché non c'è una decisione scientifica separata, il check Ubuntu resta rosso e la PR non è pronta al merge.
+
 Se un controllo fallisce, **non rigenerare la fixture dal checkout modificato**. Verificare prima EOL, editor, Git attributes e diff rispetto al commit fonte. Modifiche scientifiche deliberate richiedono un nuovo protocollo e un processo di revisione; non devono forzare la compatibilità di cache preesistenti. Queste protezioni rilevano incidenti e regressioni: non impediscono a un autore di una PR di modificare insieme test e riferimenti, che rimangono oggetto di revisione.
 
 ## Componenti sperimentali e confini

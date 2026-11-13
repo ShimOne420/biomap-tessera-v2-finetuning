@@ -33,9 +33,9 @@
     "torch": "2.10.0",
     "cpu_forward_backward": "passed",
     "mps_built": true,
-    "mps_available": false,
+    "mps_available": true,
     "cuda_available": false,
-    "mps_probe": "not_requested",
+    "mps_probe": "passed",
     "encoder_loaded": false
   },
   "setup_fresh_venv": "passed",
@@ -46,8 +46,8 @@
     "passed": 166,
     "failed": 0,
     "skipped": 1,
-    "warnings": 1427,
-    "seconds": 119.2,
+    "warnings": 1426,
+    "seconds": 93.92,
     "experiment_b_cases": 21,
     "skip_reason": "Windows-only file-sharing test: tests/test_dense_fast.py:277"
   },
@@ -66,5 +66,44 @@
   "experiments_changed": false,
   "datasets_downloaded": false,
   "production_pc_accessed": false,
-  "gpu_or_scientific_training_executed": false
+  "persistent_clone": "~/Developer/biomap-tessera-v2-finetuning",
+  "persistent_clone_git_and_pth_hidden_or_dataless": false,
+  "initial_desktop_suite": {
+    "command": "python -m pytest -ra --junitxml=test-results/cpu.xml",
+    "collected": 167,
+    "passed": 166,
+    "failed": 0,
+    "skipped": 1,
+    "warnings": 1427,
+    "seconds": 119.2,
+    "experiment_b_cases": 21,
+    "skip_reason": "Windows-only file-sharing test: tests/test_dense_fast.py:277"
+  },
+  "scientific_training_executed": false,
+  "mps_technical_probe_executed": true,
+  "cuda_executed": false,
+  "ci_verified_at_405d0d9": {
+    "run_id": 43419391006,
+    "url": "https://github.com/ShimOne420/biomap-tessera-v2-finetuning/actions/runs/43419391006",
+    "macos": {
+      "passed": 166,
+      "failed": 0,
+      "skipped": 1,
+      "seconds": 194.59
+    },
+    "windows": {
+      "passed": 167,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 235.7
+    },
+    "ubuntu": {
+      "passed": 165,
+      "failed": 1,
+      "skipped": 1,
+      "seconds": 61.43,
+      "failure": "test_s1_storage_historical_convention: 5097 != 5098"
+    },
+    "production_arithmetic_or_expected_value_changed": false
+  }
 }

@@ -62,12 +62,22 @@ def main(argv=None):
                     'import sys; sys.path.insert(0,sys.argv[1]); import runtime,sources,patch_builder,dataset,model,train,evaluate,preflight,monitor',
                     str(experiment)], cwd=ROOT, check=True)
     import torch
+    import numpy as np
+    from biomap_v2.campaign.streaming import s1_storage
     value = torch.tensor([1., 2.], requires_grad=True)
     value.square().sum().backward()
     torch.testing.assert_close(value.grad, torch.tensor([2., 4.]))
     report.update(torch=torch.__version__, cpu_forward_backward='passed',
                   mps_built=torch.backends.mps.is_built(), mps_available=torch.backends.mps.is_available(),
                   cuda_available=torch.cuda.is_available(), mps_probe='not_requested', encoder_loaded=False)
+    # Observe the published boundary case; do not change NumPy dispatch or production arithmetic.
+    boundary = np.array([0.05949767306447029, 0., -1., np.nan, 1e-9])
+    positive = boundary.astype(np.float32)
+    positive = positive[np.isfinite(positive) & (positive > 0)]
+    report.update(numpy=np.__version__, numpy_log10_dispatch=np.lib.introspect.opt_func_info(func_name='log10'),
+                  r1_s1_boundary={'input': float(boundary[0]), 'storage': int(s1_storage(boundary)[0]),
+                                  'before_integer': float(((np.float32(20) * np.log10(positive) + np.float32(50)) * np.float32(200))[0]),
+                                  'contract_test': 'tests/test_dense_public.py::test_s1_storage_historical_convention'})
     if args.probe_mps:
         if not report['mps_available']:
             raise RuntimeError('MPS richiesto ma non disponibile; CPU resta il riferimento dei test')

@@ -1,0 +1,77 @@
+{
+  "date": "2026-11-13",
+  "branch": "feature/spatial-cnn-v2",
+  "base_main": "b7da382d4424c1ddd35a285830f95bb2d42c6436",
+  "tested_code_commit": "a383cbafecd3174abac47e3497f9292efe3480a9",
+  "environment": {
+    "python": "3.12.14",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "architecture": "arm64",
+    "numpy": "2.2.6",
+    "torch": "2.10.0",
+    "syntax_files": 134,
+    "cpu_forward_backward": "passed"
+  },
+  "baseline_suite": {
+    "passed": 168,
+    "failed": 0,
+    "skipped": 1,
+    "seconds": 47.96
+  },
+  "new_tests": {
+    "passed": 42,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 8.44
+  },
+  "unified_suite": {
+    "passed": 210,
+    "failed": 0,
+    "skipped": 1,
+    "warnings": 1426,
+    "seconds": 53.67,
+    "skip_reason": "Existing Windows file-sharing test, executed on Windows CI"
+  },
+  "r1": {
+    "fixture": "tests/fixtures/r1_contract_1cdc762.json",
+    "files": {
+      "src/biomap_v2/campaign/streaming.py": {
+        "sha256": "22d483993fe303b6b92e9c7516e95a461e1ed0dca18abc9d3fec965834626f95",
+        "eol": "lf",
+        "matches_published_fixture": true
+      },
+      "src/biomap_v2/raster_cache.py": {
+        "sha256": "1cbc8e9a41b6d445cc650de9a738a10006c0ea3bd079e6c590d36389c2287db8",
+        "eol": "crlf",
+        "matches_published_fixture": true
+      },
+      "src/biomap_v2/data.py": {
+        "sha256": "bd81b43f0fb5f4977e420f52ecb238689941ad6554a0d6030670ee5d349f6849",
+        "eol": "crlf",
+        "matches_published_fixture": true
+      },
+      "src/biomap_v2/reference.py": {
+        "sha256": "018c49170a305c0791c3b87ee13e9e4d622a8009f13c56f3a7cf333c20e2b769",
+        "eol": "crlf",
+        "matches_published_fixture": true
+      },
+      "src/biomap_v2/encoder.py": {
+        "sha256": "d556151970231476f5957e6daced8dae81ec9ff4db8fd10c7a11f11e234a1926",
+        "eol": "crlf",
+        "matches_published_fixture": true
+      }
+    }
+  },
+  "legacy_experiments_unchanged": true,
+  "r1_r2_entrypoints_and_scientific_configs_unchanged": true,
+  "university_accessed": false,
+  "pretrained_encoder_loaded_or_run": false,
+  "legacy_random_tiny_encoders_in_cpu_regression": true,
+  "weights_or_remote_dataset_downloaded": false,
+  "full_spatial_artifacts_available_on_university_pc": "unknown: doctor required",
+  "cuda_5080_verified": false,
+  "mps_test_required": false,
+  "scientific_msa_experiment_run": false,
+  "fine_tuning_implemented_or_run": false,
+  "remote_ci": "Not yet observed at this documentation snapshot; final results in PR checks"
+}

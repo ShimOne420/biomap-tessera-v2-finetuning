@@ -79,3 +79,14 @@ Il codice è pronto per verifiche CPU riproducibili; i comandi Windows sono prep
 Il [runbook](windows_runbook.md) contiene verifica, download pesi solo se necessario, nuova estrazione opzionale, ripresa e percorso corretto al training. Il [rapporto di fattibilità](finetuning_feasibility.md) è statico: nessun fine-tuning implementato/eseguito. Restano rinviati Residual CNN, nuovi encoder, attention, Transformer predittivi, halo e nuovi formati degli embedding.
 
 I risultati della suite completa, l'audit r1 e la CI del commit pubblicato sono registrati nel riepilogo di validazione e nella PR; gli esiti remoti non sono anticipati da questo report.
+
+
+## Verifica finale prima della pubblicazione
+
+Sul codice `a383cba`, la suite unificata finale ha dato **210 passati, 0 falliti, 1 skip Windows-only**, 1.426 warning, **53,67 secondi**. I nuovi test sono **42 passati**, nessun skip, 8,44 secondi. La verifica precedente (208/0/1) è stata estesa con i test di inizializzazione deterministica CUDA senza inizializzare GPU e di parità/configurabilità del Mean MLP. Import, sintassi e piccolo backward CPU passano; tutti i 21 casi B rimangono inclusi.
+
+È configurato `CUBLAS_WORKSPACE_CONFIG=:4096:8` prima dell'inizializzazione CUDA, come nel trainer B, e profile usa le stesse impostazioni deterministiche del training. Questo prepara il percorso tecnico, ma non sostituisce la prova sulla GPU. I limiti del determinismo sono documentati da [PyTorch](https://docs.pytorch.org/docs/2.10/generated/torch.use_deterministic_algorithms.html) e la configurazione workspace da [NVIDIA](https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility). Non promettiamo identità fra CPU/MPS/CUDA.
+
+Configurazione effettiva e selezione OOF hanno checksum verificati prima di ripresa/refit/confronto; il test di alterazione delle epoche scelte viene rifiutato. Gli output restano nella root privata, con guardia sui nomi dei run. La verifica raw ha confermato **5/5 SHA256 e 5/5 EOL r1** rispetto alla fixture pubblica; il diff di tutti i moduli V2 legacy, Dense heads, esperimenti A/B, workflow, `.gitattributes`, lock e configurazione pytest rispetto al main base è vuoto. I dettagli riproducibili sono in [validation.json](validation.json).
+
+Il branch è `feature/spatial-cnn-v2`, con commit distinti per audit, contratti/reader, CNN, engine, documentazione e guardie di riproducibilità. La pubblicazione apre una PR verso main e non esegue merge. Gli esiti remoti finali saranno leggibili nei check e nella descrizione della PR; il JSON conserva lo stato locale verificato al momento del commit documentale.

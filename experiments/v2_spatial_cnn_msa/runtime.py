@@ -3,7 +3,7 @@
 #   stessa CNN, stesse celle/patch/maschere/split/target dell'Esperimento B (V1 spatial), ma i valori dei
 #   pixel sono gli embedding TESSERA V2 per pixel prodotti da r2-fast con --keep-pixel-embeddings.
 # COME VIENE RICHIAMATO
-#   Importato da patch_builder.py, train.py, preflight.py, evaluate.py, monitor.py di questa cartella.
+#   Importato da patch_builder.py, train.py, preflight.py, evaluate.py di questa cartella.
 #   Esempio: python train.py --work-root C:\BioMAP\v2_spatial_msa --v1-root F:\biomap_dense_public\v1_tiles
 #            --v2-root C:\BioMAP\v2_spatial_work\dense_r2 --reference F:\biomap_dense_public\reference --preset full
 # LOGICA IN ORDINE

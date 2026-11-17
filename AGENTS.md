@@ -48,3 +48,5 @@ Conservare ID, target GLOBIO, fold geografici, conteggi e provenienza. Separare 
 Ogni nuovo script/modulo di supporto/test deve iniziare con un commento dettagliato su scopo, fasi, input/output, parametri/esempio, risorse e ripresa. Tenere dati, credenziali, venv, cache e checkpoint fuori da Git. Fare commit soltanto del proprio lavoro, aprire PR revisionabili e indicare dipendenze da altri branch. Non modificare esperimenti altrui oltre al minimo necessario per la CI.
 
 Guida operativa: [docs/development/MACOS_SETUP.md](docs/development/MACOS_SETUP.md). Produzione, sviluppo e test devono avere directory e processi separati.
+
+Fine-tuning TESSERA V2 da eseguire sul PC universitario: leggere prima [docs/development/FINETUNING_HANDOFF_PC.md](docs/development/FINETUNING_HANDOFF_PC.md) (base, vincoli Windows, contratto di esecuzione).

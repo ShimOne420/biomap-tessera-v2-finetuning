@@ -47,3 +47,7 @@ Il nuovo adapter userà gli helper ufficiali di binning e le costanti S1 asc/des
 Il checkpoint reale ha QK norm disabilitata: usa MultiheadAttention con QKV combinate (`self_attn.in_proj_weight`) e proiezione `out_proj`; non ha i `q_proj/k_proj/v_proj` separati della variante QK-norm presente nel sorgente. Linear del feed-forward e della fusione sono altri candidati potenziali. PEFT non è una dipendenza installata del progetto. Compatibilità di una particolare implementazione LoRA, risparmio VRAM e qualità non sono verificati; LoRA non viene implementata.
 
 Il caricamento strict reale è verificato sul Mac. La piccola prova differenziabile, l'equivalenza del prefisso e i conteggi dopo freezing verranno registrati nel report finale. Nessuna serie Sentinel reale, metrica MSA o prova RTX 5080 è stata eseguita in questo audit.
+
+## Addendum dopo l’implementazione
+
+Il probe CPU sul checkpoint reale ha confermato parità forward (massimo errore osservato 0) e backward/optimizer con entrambi gli ultimi blocchi per modalità. Sono stati provati anche Dense Mean e Spatial CNN con input artificiali e loss per cella: gradienti/aggiornamenti raggiungono teste e suffissi, nessun peso congelato cambia. I conteggi reali per N=1/2/3 sono 6.494.594 / 11.208.818 / 15.923.042, esclusa la testa. Evidenze in `validation/MAC_CHECKPOINT_PROBE.json`. Queste prove aggiornano l’audit senza trasformarle in validazione Sentinel o CUDA: stato reale ancora NOT_VERIFIED_FOR_REAL_TRAINING.

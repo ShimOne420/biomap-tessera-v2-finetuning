@@ -6,6 +6,12 @@ Il vecchio esperimento A su medie Dense/Conv1D non è più un passo da eseguire 
 
 **Condizione indispensabile:** la work-root V2 deve contenere `pixel_embeddings/<aoi>/<tile>.npy` e sidecar validi. Il solo `v2.parquet` non basta. La r1 conserva questi file soltanto con `--keep-pixel-embeddings`, disabilitato di default. Non sappiamo se il run universitario attuale li abbia conservati: il primo comando dati lo controlla. Se mancano, [seguire il percorso dedicato](docs/framework/windows_runbook.md#se-mancano-gli-embedding-per-pixel); non è possibile promettere il training immediato al termine dell'estrazione delle sole medie.
 
+## Nuovo esperimento: partial fine-tuning V2 Medium
+
+Il percorso separato è `scripts/finetune_v2.py`, sul branch **feature/finetuning-v2**. Supporta ultimi 1–3 blocchi, Dense Mean oppure la stessa Spatial CNN e controllo frozen appaiato. **L’aggregazione rimane da scegliere; nessun training reale è stato eseguito.** Gli input Sentinel vanno riacquisiti: le mappe finali non consentono di aggiornare l’encoder.
+
+Partire dal [runbook PowerShell del PC](docs/development/FINETUNING_V2_RUNBOOK_PC.md), quindi leggere [audit](docs/finetuning/V2_MEDIUM_ARCHITECTURE_AUDIT.md), [progetto](docs/finetuning/PARTIAL_FINETUNING_DESIGN.md), [budget cache/disco](docs/finetuning/CACHE_FEASIBILITY.md), [report dettagliato](docs/finetuning/IMPLEMENTATION_REPORT.md) e [decisioni successive](docs/finetuning/TOMORROW_DECISION_GUIDE.md). Usare un clone nuovo: non aggiornare codice, ambiente o cache del run Spatial attivo.
+
 ## 1. Codice separato e ambiente Windows
 
 I comandi seguenti si eseguono personalmente sul PC, dopo la conclusione del run attuale per le attività GPU. Nessun processo universitario viene controllato da questo repository. Usare un clone e una venv nuovi preserva checkout e ambiente della campagna.

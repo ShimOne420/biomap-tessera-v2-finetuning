@@ -1,0 +1,14 @@
+# Solo prova tecnica: quattro celle, nessuna stima di generalizzazione o selezione scientifica.
+extends: v2_partial_finetuning.yaml
+experiment:
+  profile: smoke
+sampling:
+  method: center_windows
+  approved: true
+  window_side: 2
+training:
+  learning_rate_encoder: 0.00001
+  learning_rate_head: 0.001
+  batch_size: 1
+  epochs: 1
+# L'aggregazione rimane undecided: scegliere --aggregation esplicitamente anche per lo smoke.

@@ -34,5 +34,22 @@
       128,
       1760
     ]
-  }
+  },
+  "partial_boundary_probes": [
+    {
+      "last_n": 1,
+      "max_absolute_error": 0.0,
+      "trainable_parameters": 6494594
+    },
+    {
+      "last_n": 2,
+      "max_absolute_error": 0.0,
+      "trainable_parameters": 11208818
+    },
+    {
+      "last_n": 3,
+      "max_absolute_error": 0.0,
+      "trainable_parameters": 15923042
+    }
+  ]
 }

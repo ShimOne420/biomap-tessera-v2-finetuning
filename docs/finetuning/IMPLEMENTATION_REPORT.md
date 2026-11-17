@@ -62,7 +62,7 @@ Il controllo frozen usa gli stessi input/head/seed del partial, ed è il confron
 
 Baseline sulla base obbligatoria, prima del nuovo codice: **213 passed, 1 skipped, 0 failed**, CPU macOS, Python 3.12.14 e Torch 2.10.0. Lo skip è quello preesistente Windows-only. La suite nuova copre N=1/2/3, gradienti e optimizer, due head, una previsione per cella, pesi maschere/supporto, modalità mancanti, cache prefisso online/eval/train, checksum, root/spazio, checkpoint e ripresa esatta, vero worker spawn, acquisizione interrotta simulata e raw uguali al percorso storico, CV/refit frozen e esclusione Liguria dalla selezione. Nessun download nei test.
 
-**Gli esiti finali della suite completa e della CI saranno registrati qui dopo l'esecuzione**, prima della consegna della PR. I test sintetici non validano le librerie native Windows sui dati reali. La differenza S1 float32 di frontiera documentata dal progetto resta possibile tra CPU: non è stata corretta alterando CODE_FILES o allargando tolleranze. La prova campionaria input r2 sul PC deve bloccare discrepanze non spiegate.
+La versione finale del codice `ef1f3d7` ha completato la suite: **243 passed, 1 skipped, 0 failed**, in 64,19s. Da clone Git pulito separato: **243 passed, 1 skipped**, in 73,64s, riusando soltanto la venv di sviluppo per le dipendenze. Il check ambiente/import/sintassi/backward è passato. La prima CI su de943eb è passata sui tre OS; la CI finale del codice esteso è registrata nella sezione conclusiva. I test sintetici non validano le librerie native Windows sui dati reali. La differenza S1 float32 di frontiera documentata dal progetto resta possibile tra CPU: non è stata corretta alterando CODE_FILES o allargando tolleranze. La prova campionaria input r2 sul PC deve bloccare discrepanze non spiegate.
 
 Il test iniziale di protezione confrontava erroneamente il blob Git LF con il checkout r1 CRLF: è stato corretto derivando le EOL dal contratto versionato, non riscrivendo file legacy o inventando nuovi valori attesi. Il nuovo fixture mantiene byte raw per r1 e confronto contenuto LF per gli altri file non coperti da pin EOL. Il test r1 esistente continua a verificare la propria fixture storica indipendente.
 
@@ -76,10 +76,34 @@ La preferenza resta N=2, ma non è certificata sostenibile per tutte le celle su
 
 ## Aggiornamento essenziale del handoff durante la consegna
 
-I nuovi documenti del PC precisano che le serie legacy a25 punti esistono: non sono utilizzabili per questo esperimento a causa di S1 10log10, S2 nearest e DOY limitato. Sono state aggiunte alle root protette configurabili e al doctor come artefatto incompatibile escluso. Nessuna conversione è implementata.
+I nuovi documenti del PC precisano che le serie legacy a 25 punti esistono: non sono utilizzabili per questo esperimento a causa di S1 10log10, S2 nearest e DOY limitato. Sono state aggiunte alle root protette configurabili e al doctor come artefatto incompatibile escluso. Nessuna conversione è implementata.
 
-La scelta ora fissata dal handoff è acquisire un campione dei pixel originali V1 per ogni cella, usando le regole dense storiche. Il gate benchmark richiede uniform_pixels; full_support è escluso dal training e center_windows rimane tecnico. La proposta motivata è32, seed20260925, fino a4.252.800 contributi. La config dedicata v2_partial_sample32.yaml lascia approved=false: il download è indipendente da testa/LR ma richiede approvazione esplicita del supporto. L'aggregazione resta undecided.
+La scelta ora fissata dal handoff è acquisire un campione dei pixel originali V1 per ogni cella, usando le regole dense storiche. Il gate benchmark richiede uniform_pixels; full_support è escluso dal training e center_windows rimane tecnico. La proposta motivata è 32, seed20260925, fino a4.252.800 contributi. La config dedicata v2_partial_sample32.yaml lascia approved=false: il download è indipendente da testa/LR ma richiede approvazione esplicita del supporto. L'aggregazione resta undecided.
 
 È stato aggiunto dense-eval per entrambe le head. Questo comando riusa lo streaming originale, applica i veri checkpoint adattati e non spaccia i suoi output per una cache r1/r2. Sviluppo OOF usa il modello del fold che esclude ogni AOI; Liguria usa refit. Supporto e conteggi sono quelli storici completi, selezione invariata sul campione. Produce metriche/predizioni dense separate e un protocollo nuovo; gestisce celle multi-tile/multi-UTM senza ricampionamento. Il raw transitorio nuovo è eliminato solo dopo commit della tile; le mappe nuove solo dopo commit dell'AOI. Tutte le sorgenti/cache/checkpoint preesistenti restano intatti. È l'unica pulizia automatica, necessaria per lo streaming e confinata a staging di proprietà del nuovo run. Test sintetici verificano entrambe le aggregazioni e resume senza ulteriori acquisizioni delle AOI concluse.
 
 Il runbook è aggiornato con acquisizione32 indipendente e dense-eval, stime dichiarate del PC e controllo spazio. Gli esiti finali qui sotto sostituiscono quelli intermedi.
+
+## Verifica finale del codice e pubblicazione
+
+Il codice finale è il commit `ef1f3d7` su **feature/finetuning-v2**. PR aperta: [#7](https://github.com/ShimOne420/biomap-tessera-v2-finetuning/pull/7), base fix/spatial-v2-real-parquet-schema. Nessun merge o push su main. Working tree verificato pulito dopo i commit del codice; nessuna differenza nei cinque CODE_FILES, sources.py/support.py, .gitattributes, lock o entry point legacy rispetto alla base 1737b1f.
+
+I 30 nuovi casi CPU sono tutti passati, compreso dense-eval su entrambe le head e confronto numerico con le teste del forward training, supporto completo sintetico, resume e sorgenti immutate. L'intera suite locale e da clone pulito ha243 passed/1 skipped; lo skip Windows-only resta motivato e preesistente. I warning sono1446, prevalentemente deprecazioni geospaziali e diagnostiche preesistenti; non sono stati silenziati per rendere verde la suite. Il clone pulito usa un checkout indipendente e dipendenze riusate, non una nuova installazione macOS. La CI esegue invece il setup su runner puliti.
+
+Per lo spazio, C: e F: non sono un unico pool: pianificare raw e checkpoint per ciascuna destinazione.32 pixel sono solo una proposta. Con copie giornaliere e archivio immutabile di entrambi i run, le epoche massime possono richiedere più spazio del disponibile; spostare la nuova output-root su un'altra unità o scegliere un budget approvato prima del training. Non liberare automaticamente spazio cancellando dati/cache/checkpoint esistenti.
+
+## Esiti CI osservati sul commit del codice ef1f3d7
+
+Workflow finale [44123439025](https://github.com/ShimOne420/biomap-tessera-v2-finetuning/actions/runs/44123439025): **success**, tre job completati.
+
+| Ambiente | Passati | Falliti | Saltati | Durata pytest |
+|---|---:|---:|---:|---:|
+| Mac locale |243|0|1|64,19s|
+| Clone pulito Mac |243|0|1|73,64s|
+| GitHub Ubuntu |243|0|1|112,33s|
+| GitHub macOS |243|0|1|167,17s|
+| GitHub Windows |244|0|0|322,60s|
+
+Su Windows viene eseguito anche il controllo di condivisione file che sugli altri OS è saltato. I warning CI sono rispettivamente 1447/1445/1442; nessun errore è stato nascosto con skip o tolleranze aumentate. Il commit successivo aggiorna soltanto questa documentazione e le evidenze JSON: i test sopra si riferiscono esplicitamente a ef1f3d7, il codice rimane identico. Nessuna nuova esecuzione scientifica viene implicata dalla CI.
+
+**Consegna tecnica completata. Fattibilità partial: supportata con modifiche isolate. Stato operativo: NOT_VERIFIED_FOR_REAL_TRAINING** finché il PC non completa smoke reale, parità input e misura risorse e l'utente non approva supporto, aggregazione e iperparametri. Report e runbook sono pubblicati nello stesso branch della PR; la PR resta aperta e non viene unita automaticamente.

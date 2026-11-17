@@ -58,9 +58,28 @@ circa 95 GB.
   - S2 al pixel più vicino, non bilineare.
   - DOY limitato a 365.
 
-Proponi esplicitamente se usare queste serie, per esempio per un fine-tuning con loss sulla cella su 25 pixel,
-senza nessun download, oppure perché non bastano. Se servono nuovi download, riacquisire da MPC costa circa 12–25
-ore di rete anche per un campione di pixel, perché si leggono gli stessi blocchi COG. La strategia deve dichiarare:
+**Decisione dell'utente (17/11/2026):**
+- Il fine-tuning usa input con il **protocollo V2 denso storico**, non le serie a 25 punti. Le serie a 25 punti
+  restano sul PC, in sola lettura, e non vanno usate per training o valutazione.
+- Si acquisisce un **campione fisso di pixel per cella**, estratto dai pixel della geometria V1 di ogni cella
+  (`geometry.npz` del reference). Il campionamento ha seed fisso ed è salvato nel protocollo.
+- Si usa il codice r1 di `campaign/streaming.py` (`Pixels(tile, positions)`, `catalog`, `acquire_points`),
+  importato e non modificato. Le serie vanno conservate in un output root nuovo su F:.
+- **Ordine di grandezza:**
+  - 32 pixel per cella ≈ 4,3 milioni di pixel ≈ 13 GB;
+  - 64 pixel per cella ≈ 8,5 milioni di pixel ≈ 25 GB;
+  - circa 12–25 ore di rete in entrambi i casi, perché si leggono gli stessi blocchi COG.
+- Proponi il numero di pixel per cella, motivandolo.
+- Tutti i pixel densi sono esclusi:
+  - servono circa 294 GB di disco;
+  - un'epoca richiederebbe più di un giorno, mentre la sola codifica dei 99,5 milioni di pixel ne richiede 8–9 ore.
+- **Valutazione finale nell'aggregazione densa completa:** richiede un nuovo streaming di tutti i pixel con i pesi
+  fine-tuned, come r1 ma con un altro checkpoint e un protocollo nuovo. Non serve conservare le serie.
+  - Prevedi questo comando (sottocomando `dense-eval` o equivalente), riusando lo streaming esistente.
+  - Stimane la durata.
+
+Il download partirà sul PC appena la PR fisserà i pixel per cella. Rendi quindi l'acquisizione un sottocomando
+separato, riprendibile e utilizzabile da solo. La strategia deve dichiarare:
 - quanti pixel o celle si acquisiscono;
 - come si campionano;
 - dove si salvano;

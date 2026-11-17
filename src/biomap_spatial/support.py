@@ -3,6 +3,8 @@
 # Input: mask HW o poligono nel CRS dichiarato; output: finestre e mask senza resampling/halo.
 # Parametri: max_patch_side, policy preservazione contributi legacy. Esempio: windows(mask,64).
 # Risorse: CPU e piccole finestre; ripresa senza stato. Le geometrie V2 congelate non vengono rimappate.
+# Celle a cavallo di due zone UTM: patch in CRS diversi ammesse (ognuna sulla sua griglia nativa),
+# risoluzioni diverse rifiutate. Vedi overlap_report.
 from dataclasses import dataclass
 import numpy as np
 
@@ -57,16 +59,23 @@ def support_keys(grid, row, col, mask):
              float(y0 + (r + row + .5) * e)) for r, c in zip(rr, cc)]
 
 
+# Audit delle patch di una cella. Le patch possono stare in CRS diversi: le celle GLOBIO a cavallo del
+# meridiano 12°E (107 celle di belluno_dolomiti) hanno pixel in tile UTM 32N e 33N. È ammesso perché
+# ogni patch resta sulla propria griglia nativa e viene codificata da sola, poi pesata per pixel validi
+# in collate_cells: nessun mosaico né ricampionamento. Le chiavi dei duplicati includono il CRS, quindi
+# il conteggio resta esatto. Resta vietata una risoluzione diversa tra le patch della stessa cella.
 def overlap_report(patches):
     seen = set()
     contributions = 0
-    grids = set()
+    resolutions, crs = set(), set()
     for grid, row, col, mask in patches:
-        grids.add((grid.crs, grid.transform[0], grid.transform[4]))
+        resolutions.add((abs(grid.transform[0]), abs(grid.transform[4])))
+        crs.add(grid.crs)
         keys = support_keys(grid, row, col, mask)
         contributions += len(keys)
         seen.update(keys)
-    if len(grids) > 1:
-        raise ValueError('CRS/risoluzioni incompatibili nella stessa cella')
+    if len(resolutions) > 1:
+        raise ValueError('Risoluzioni incompatibili nella stessa cella')
     return {'contributions': contributions, 'unique_exact_centers': len(seen),
-            'duplicate_contributions': contributions - len(seen), 'policy': 'preserve_legacy_contributions'}
+            'duplicate_contributions': contributions - len(seen), 'crs': sorted(crs),
+            'policy': 'preserve_legacy_contributions'}

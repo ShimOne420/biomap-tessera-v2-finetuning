@@ -70,7 +70,14 @@ def test_native_grid_masks_borders_padding_overlap_and_empty():
     assert audit['duplicate_contributions']==12
     with pytest.raises(ValueError,match='CRS'):cell_mask(grid,polygon,'EPSG:4326')
     with pytest.raises(ValueError,match='vuoto'):list(windows(np.zeros((2,2),bool),2))
-    with pytest.raises(ValueError,match='risoluzioni'):overlap_report([(grid,0,0,mask),(Grid(4,4,(20,0,0,0,-20,80),'EPSG:32632'),0,0,mask)])
+    with pytest.raises(ValueError,match='Risoluzioni'):overlap_report([(grid,0,0,mask),(Grid(4,4,(20,0,0,0,-20,80),'EPSG:32632'),0,0,mask)])
+    # Cella a cavallo del confine UTM 32N/33N (caso reale di belluno_dolomiti): stessa risoluzione,
+    # CRS diversi -> ammessa; i centri in CRS diversi non sono duplicati.
+    east=Grid(4,4,(10,0,0,0,-10,40),'EPSG:32633')
+    audit=overlap_report([(grid,0,0,mask),(east,0,0,mask)])
+    assert audit['duplicate_contributions']==0 and audit['contributions']==24
+    assert audit['crs']==['EPSG:32632','EPSG:32633']
+    with pytest.raises(ValueError,match='Risoluzioni'):overlap_report([(grid,0,0,mask),(Grid(4,4,(20,0,0,0,-20,80),'EPSG:32633'),0,0,mask)])
 
 
 def test_v1_adapter_preserves_int8_scale_semantics(tmp_path):

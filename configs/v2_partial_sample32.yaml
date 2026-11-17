@@ -1,0 +1,7 @@
+# Proposta operativa da approvare: stesso benchmark, 32 contributi/cella, acquisizione separata dal training.
+# Aggregazione e iperparametri restano undecided/null; approved=false richiede consenso esplicito nella CLI.
+extends: v2_partial_finetuning.yaml
+sampling:
+  method: uniform_pixels
+  pixels_per_cell: 32
+  approved: false

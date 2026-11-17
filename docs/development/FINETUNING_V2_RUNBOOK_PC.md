@@ -44,8 +44,8 @@ function Invoke-FT {
     if ($LASTEXITCODE -ne 0) { throw 'Comando fine-tuning fallito: leggere errore e progress, non proseguire automaticamente' }
 }
 $Checkpoint = 'C:\Users\brome\Desktop\BIOMAP_TESSERA_V2\data\weights\student_medium.pt'
-$Protected = 'paths.read_only_roots=["C:/BioMAP/spatial-code","C:/BioMAP/spatial_runs","C:/BioMAP/v2_spatial_pixels_r2","F:/biomap_dense_public"]'
-$Shared = @('--reference','F:\biomap_dense_public\reference','--catalog-root','F:\biomap_dense_public\work\api','--frozen-pixels','C:\BioMAP\v2_spatial_pixels_r2','--checkpoint',$Checkpoint,'--device','cuda:0','--set',$Protected,'--set','paths.frozen_work=F:/biomap_dense_public/work','--set','paths.frozen_spatial_run=C:/BioMAP/spatial_runs/v2_spatial3_seed42')
+$Protected = 'paths.read_only_roots=["C:/BioMAP/spatial-code","C:/BioMAP/spatial_runs","C:/BioMAP/v2_spatial_pixels_r2","F:/biomap_dense_public","C:/Users/brome/Desktop/BIOMAP_TESSERA_V2/data"]'
+$Shared = @('--reference','F:\biomap_dense_public\reference','--catalog-root','F:\biomap_dense_public\work\api','--frozen-pixels','C:\BioMAP\v2_spatial_pixels_r2','--checkpoint',$Checkpoint,'--device','cuda:0','--set',$Protected,'--set','paths.legacy_series=C:/Users/brome/Desktop/BIOMAP_TESSERA_V2/data/msa_v1_liguria/series','--set','paths.frozen_work=F:/biomap_dense_public/work','--set','paths.frozen_spatial_run=C:/BioMAP/spatial_runs/v2_spatial3_seed42')
 $SmokePaths = @('--raw-root','F:\biomap_ft_smoke_inputs','--output-root','F:\biomap_ft_smoke_runs')
 $MainPaths = @('--raw-root','F:\biomap_ft_inputs','--output-root','F:\biomap_ft_runs')
 New-Item -ItemType Directory -Force 'C:\BioMAP\finetuning-logs' | Out-Null
@@ -98,7 +98,23 @@ Durante il training dello smoke, in un'altra finestra oppure dopo Ctrl+C sul sol
 
 Leggere `phase`, `done/total`, `rate_per_second`, `eta_seconds`, `estimated_finish_utc`, eventuale `error`. Un ETA null significa che manca ancora una velocità misurabile, non che il processo sia finito. Il training stima i passaggi ancora pianificati nella fase/fold corrente, non tutta la CV futura. Il monitor non controlla il run Spatial esistente. Interrompere il monitor non interrompe il training.
 
-## 5. Piano completo e decisioni dell'utente
+## 5. Acquisizione indipendente: proposta 32 pixel per cella
+
+Aggiornamento del handoff `36e4bb8`: il benchmark allena su un campione fisso dei pixel della geometria V1. Le serie legacy a 25 punti presenti sul PC restano protette e non si usano: S2 nearest, S1 10·log10 e DOY limitato non riproducono il denso storico. Non eseguire conversioni “riparatrici”.
+
+La proposta è **32 contributi per cella**, seed 20260925, con tetto 4.252.800 pixel. Lo YAML dedicato non presume approvazione. È possibile iniziare soltanto l'acquisizione dopo l'approvazione del supporto, senza aver ancora scelto aggregazione o learning rate:
+
+```powershell
+$Approve32 = Read-Host 'Approvi il campione fisso di 32 pixel per cella con protocollo denso storico? Scrivi SI per acquisirlo'
+if ($Approve32 -ne 'SI') { throw 'Proposta non approvata: nessuna acquisizione' }
+$Acquire32 = @('--config','configs\v2_partial_sample32.yaml') + $Shared + $MainPaths + @('--set','sampling.approved=true')
+Invoke-FT acquire @Acquire32 --dry-run
+Invoke-FT acquire @Acquire32
+```
+
+Per riprendere questo download: `Invoke-FT acquire @Acquire32 --resume`. Per passare al training selezionare poi **lo stesso sampling 32** nel blocco successivo. Se si approva 64 anziché 32 usare un override esplicito e una nuova raw-root, dopo il relativo budget. Sono ipotesi del PC 13/25 GB di raw e 12–25 ore di rete; il nostro storage conserva anche copie giornaliere e l'ammissione reale può richiedere più spazio. L'acquisizione da sola non avvia encoder o training.
+
+## 6. Piano completo e decisioni dell'utente
 
 Il benchmark non eredita i valori tecnici dello smoke. Il piano comune iniziale rimane bloccato finché non si sceglie il sampling:
 
@@ -109,18 +125,13 @@ Invoke-FT doctor --config configs\v2_partial_finetuning.yaml @Shared @MainPaths 
 Dopo aver esaminato tempi, VRAM e spazio del pilot, inserire le scelte effettive. Le domande non propongono parametri scientifici obbligati. Per i learning rate usare decimali con punto (per esempio `0.00001` solo se è il valore approvato), non una virgola locale.
 
 ```powershell
-$Sampling = Read-Host 'Supporto approvato: full_support, uniform_pixels oppure center_windows'
-if ($Sampling -notin @('full_support','uniform_pixels','center_windows')) { throw 'Sampling esplicito richiesto' }
+$Sampling = Read-Host 'Supporto del benchmark approvato: uniform_pixels'
+if ($Sampling -notin @('uniform_pixels')) { throw 'Sampling esplicito richiesto' }
 $Decisions = @('--aggregation',$Aggregation,'--set',('sampling.method=' + $Sampling),'--set','sampling.approved=true')
 if ($Sampling -eq 'uniform_pixels') {
     $PixelCount = [int](Read-Host 'Numero di contributi pixel per cella approvato')
     if ($PixelCount -lt 1) { throw 'K deve essere positivo' }
     $Decisions += @('--set',('sampling.pixels_per_cell=' + $PixelCount))
-}
-if ($Sampling -eq 'center_windows') {
-    $WindowSide = [int](Read-Host 'Lato della finestra per cella e tile approvato')
-    if ($WindowSide -lt 1) { throw 'Lato deve essere positivo' }
-    $Decisions += @('--set',('sampling.window_side=' + $WindowSide))
 }
 $LastBlocks = [int](Read-Host 'Ultimi blocchi per modalita: 1, 2 o 3; preferenza attuale 2, da verificare sul pilot')
 if ($LastBlocks -notin @(1,2,3)) { throw 'Numero blocchi non valido' }
@@ -133,14 +144,14 @@ $MainArgs = @('--config','configs\v2_partial_finetuning.yaml') + $Shared + $Main
 Invoke-FT doctor @MainArgs --dry-run | Tee-Object -FilePath 'C:\BioMAP\finetuning-logs\full-plan.txt'
 ```
 
-Verificare il numero di celle **132.900 totali**, AOI **18 incluse Liguria**, pixel selezionati, tile, budget raw giornaliero/finale, archivio checkpoint, riserva minima 20 GiB. Il numero di AOI di sviluppo resta 17. Il piano temporale è ipotetico finché manca una misura; il limite a 100 Mbit/s è un lower bound payload, non un ETA. Il supporto integrale e la cache intermedia completa non entrano nei dischi attualmente dichiarati. Il dry-run non autorizza automaticamente acquisizione o training; eseguire i prossimi blocchi solo dopo approvazione delle scelte e capacità sufficiente.
+Verificare il numero di celle **132.900 totali**, AOI **18 incluse Liguria**, pixel selezionati, tile, budget raw giornaliero/finale, archivio checkpoint, riserva minima 20 GiB. Il numero di AOI di sviluppo resta 17. Il piano temporale è ipotetico finché manca una misura; il limite a 100 Mbit/s è un lower bound payload, non un ETA. Il supporto integrale è escluso dal training e la cache intermedia completa non entra nei dischi attualmente dichiarati. Il supporto completo si usa solo nella valutazione streaming finale. Il dry-run non autorizza automaticamente acquisizione o training; eseguire i prossimi blocchi solo dopo approvazione delle scelte e capacità sufficiente.
 
-## 6. Acquisizione completa sul supporto approvato e verifica
+## 7. Acquisizione completa sul supporto approvato e verifica
 
 Prerequisiti: smoke riuscito, decisioni approvate, spazio per raw + giorni e successivi checkpoint, nessun altro run pesante. Download diretto nella nuova root F:, non sull'SSD storico. I cataloghi r1 vengono solo letti/cop­iati. L'acquisizione può essere molto lunga anche su pochi pixel per cella.
 
 ```powershell
-Invoke-FT acquire @MainArgs | Tee-Object -FilePath 'C:\BioMAP\finetuning-logs\acquire.txt'
+Invoke-FT acquire @MainArgs --resume | Tee-Object -FilePath 'C:\BioMAP\finetuning-logs\acquire.txt'
 Invoke-FT doctor @MainArgs --verify-inputs | Tee-Object -FilePath 'C:\BioMAP\finetuning-logs\input-parity.txt'
 ```
 
@@ -152,7 +163,7 @@ Nel terminale separato, per monitorare questa acquisizione:
 & 'C:\BioMAP\finetuning-code\.venv-finetune\Scripts\python.exe' scripts\finetune_v2.py monitor --progress 'F:\biomap_ft_inputs\progress.json' --interval 10
 ```
 
-## 7. Controllo frozen, partial, refit e valutazione
+## 8. Controllo frozen, partial, refit e valutazione
 
 Prerequisiti: raw completi, prova input valida, risorse verificate e autorizzazione ad avviare il training scientifico. Eseguire **una sola aggregazione**. Il controllo qui è nuovo: stessa testa, seed, supporto, preprocessing e protocollo del partial. Non sostituisce automaticamente il confronto con i vecchi run.
 
@@ -180,7 +191,26 @@ Monitor del partial da terminale separato:
 & 'C:\BioMAP\finetuning-code\.venv-finetune\Scripts\python.exe' scripts\finetune_v2.py monitor --progress 'F:\biomap_ft_runs\medium_partial\progress.json' --interval 10
 ```
 
-## 8. Interruzione e ripresa
+## 9. Valutazione finale sul supporto denso completo
+
+Richiede CV e refit completi del run, ulteriore rete/GPU e spazio per staging di una tile e mappe di una AOI. Non riacquisisce l'intero corpus per conservarlo: usa lo streaming r1 immutato, applica i checkpoint adattati e salva una previsione per cella. Sullo sviluppo usa il checkpoint del fold che esclude la AOI; per Liguria usa il refit. Nessuna nuova selezione avviene sulla Liguria. È supportata l'aggregazione già scelta, Dense Mean o Spatial CNN.
+
+```powershell
+Invoke-FT dense-eval @MainArgs --run-id medium_partial --dense-pixel-batch 256 --dry-run
+Invoke-FT dense-eval @MainArgs --run-id medium_partial --dense-pixel-batch 256
+```
+
+Il batch 256 è una proposta d'inferenza da verificare con VRAM; non cambia numero di pixel/date, né il batch celle del training. Non c'è fallback automatico. Per ripresa usare lo stesso comando con `--resume`. Output: `F:\biomap_ft_runs\medium_partial\dense-eval`, protocollo **finetune-v2-dense-eval-r1**, metriche e parquet `oof_dense_*`/`liguria_dense_*` separati dalle valutazioni sampled. Si eliminano solo i temporanei **creati da questo sottocomando**: raw dopo il commit della tile, mappe adattate dopo il commit AOI. Non si esporta né si sovrascrive la campagna r2. Una interruzione conserva i temporanei validi dell'AOI non conclusa.
+
+Monitor da un secondo terminale:
+
+```powershell
+& 'C:\BioMAP\finetuning-code\.venv-finetune\Scripts\python.exe' scripts\finetune_v2.py monitor --progress 'F:\biomap_ft_runs\medium_partial\dense-eval\progress.json' --interval 10
+```
+
+Il PC riporta 8–9 ore di sola codifica frozen e circa 2,5 giorni per la r1 completa; non è misurato il tempo di questo dense-eval. Pianificare una nuova campagna lunga, dominata da rete e tutte le scene, non poche ore garantite. Le predizioni OOF dense descrivono l'estensione del modello selezionato sul campione; non sostituire retroattivamente il criterio di selezione. Per un confronto frozen/partial sul denso completo eseguire, se approvato, anche `dense-eval @FrozenArgs --run-id medium_frozen_control` con i suoi checkpoint; i risultati storici XGBoost restano baseline diverse.
+
+## 10. Interruzione e ripresa
 
 Non cambiare codice, sampling, aggregazione, seed o configurazione per riprendere lo stesso run. I manifest rifiutano identità differenti. I checkpoint registrano RNG/optimizer/scaler e normalizzazione. La ripresa è dal confine di epoca: i minibatch dell'epoca interrotta vengono ricalcolati; gli stati già validi non vengono persi. Durante acquisizione vengono riusati i giorni/blocchi con marker/SHA validi.
 

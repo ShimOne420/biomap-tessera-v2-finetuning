@@ -38,7 +38,7 @@ def cfg(tmp_path):
     c=config.load(ROOT/'configs/v2_partial_finetuning.yaml')
     c['experiment']['profile']='synthetic';c['paths'].update(reference=str(tmp_path/'reference'),raw_root=str(tmp_path/'raw'),output_root=str(tmp_path/'runs'))
     c['encoder']['checkpoint']='synthetic_fixture_not_a_public_checkpoint'
-    c['sampling'].update(method='full_support',approved=True)
+    c['sampling'].update(method='uniform_pixels',pixels_per_cell=32,approved=True)
     c['aggregation']['method']='dense_mean';c['training'].update(learning_rate_encoder=1e-4,learning_rate_head=1e-3,batch_size=1,epochs=2)
     c['storage']['reserve_gib']=0;return c
 
@@ -95,7 +95,14 @@ def test_cell_prediction_and_differentiable_heads(tiny,method):
     assert all(p.grad is None for n,p in tiny.named_parameters() if 'layers.0.' in n)
     model.eval()
     # Targets are deliberately absent from inference input.
-    with torch.no_grad():assert model(batch,2).shape==(2,)
+    with torch.no_grad():
+        actual=model(batch,2);assert actual.shape==(2,)
+        from biomap_finetune.dense_evaluation import predict_cell
+        positions=[np.array([0,3]),np.array([0,1,3]),np.array([0])]
+        for owner in range(2):
+            pieces=[{'embeddings':model.encoder.encode_raw(g['raw'],2).numpy(),'flat':positions[i],'width':2 if i<2 else 1}
+                for i,g in enumerate(batch['groups']) if g['owner']==owner]
+            np.testing.assert_allclose(predict_cell(model,pieces,batch['cell_ids'][owner],'cpu'),float(actual[owner]),rtol=2e-5,atol=2e-5)
 
 
 def test_dense_pooling_is_weighted_over_all_contributions(tiny):
@@ -254,6 +261,40 @@ def test_budget_and_tolerance_cannot_be_silently_changed(tmp_path):
     from biomap_finetune.cli import smoke
     c['experiment']['profile']='smoke'
     with pytest.raises(ValueError,match='undecided'):smoke(c,'not_started')
+
+
+@pytest.mark.parametrize('aggregation',['dense_mean','spatial_cnn'])
+def test_dense_eval_full_support_and_resume_without_legacy_writes(tiny,tmp_path,monkeypatch,aggregation):
+    from biomap_finetune import dense_evaluation as dense,training
+    root=synthetic_store(tmp_path);source=CellDataset(root);c=cfg(tmp_path);c['experiment']['profile']='benchmark';c['aggregation']['method']=aggregation
+    run=tmp_path/'run';run.mkdir();ref=Path(c['paths']['reference']);areas=[]
+    for row in source.frame.itertuples():
+        tile=ref/row.aoi_id/'grid_1';tile.mkdir(parents=True)
+        np.savez(tile/'geometry.npz',flat_indices=np.array([0,3]),cell_ids=np.array([0,0]))
+        np.save(tile.parent/'lookup.npy',np.array([row.reference_index]))
+        save_json(tile/'geometry.json',{'width':2,'height':2,'crs':'EPSG:32632','transform':[10,0,300000,0,-10,4500000],'pixels':2})
+        areas.append({'aoi_id':row.aoi_id,'tiles':['grid_1']})
+    monkeypatch.setattr(training,'load_medium',lambda p:(deepcopy(tiny),{}))
+    for fold in ['fold_0','fold_1','fold_2','refit']:
+        path=run/fold/'epoch_0001.pt';save_checkpoint(path,{'identity':'run-id','epoch':1,'model':training.build_model(c).state_dict()})
+        save_json(path.parent/'best.json',{'file':path.name,'epoch':1})
+    before={str(p):digest(p) for p in ref.rglob('*') if p.is_file()}
+    monkeypatch.setattr(dense,'registry',lambda *args:(source,run,'run-id'))
+    monkeypatch.setattr(dense,'reference',lambda c:({'areas':areas},source.frame))
+    streams={'s2':{'2020-01-01':[]},'asc':{'2020-01-01':[]},'desc':{}}
+    monkeypatch.setattr(dense,'catalogs',lambda *args:(streams,[0,0,1,1],{'fixture':'catalog'}))
+    monkeypatch.setattr(dense.historical,'reader',lambda *args:type('Source',(),{'close':lambda self:None})())
+    calls=[]
+    def acquire(*args):calls.append(True);return raw(2)
+    monkeypatch.setattr(dense.historical,'acquire_points',acquire)
+    result=dense.dense_evaluate(c,'run',2)
+    assert result['cells']==4 and len(calls)==4
+    predictions=pd.read_parquet(run/'dense-eval/oof_dense_predictions.parquet')
+    assert len(predictions[predictions.model=='predictor'])==3
+    assert not predictions.aoi_id.eq('liguria_levante').any()
+    assert not list((run/'dense-eval/tmp').rglob('features.npy'))
+    dense.dense_evaluate(c,'run',2,resume=True);assert len(calls)==4
+    assert before=={str(p):digest(p) for p in ref.rglob('*') if p.is_file()}
 
 
 def test_acquisition_resume_and_historical_raw_equivalence(tmp_path,monkeypatch):

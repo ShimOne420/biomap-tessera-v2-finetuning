@@ -8,7 +8,7 @@ Il vecchio esperimento A su medie Dense/Conv1D non è più un passo da eseguire 
 
 ## Nuovo esperimento: partial fine-tuning V2 Medium
 
-Il percorso separato è `scripts/finetune_v2.py`, sul branch **feature/finetuning-v2**. Supporta ultimi 1–3 blocchi, Dense Mean oppure la stessa Spatial CNN e controllo frozen appaiato. **L’aggregazione rimane da scegliere; nessun training reale è stato eseguito.** Gli input Sentinel vanno riacquisiti: le mappe finali non consentono di aggiornare l’encoder.
+Il percorso separato è `scripts/finetune_v2.py`, sul branch **feature/finetuning-v2**. Supporta ultimi 1–3 blocchi, Dense Mean oppure la stessa Spatial CNN e controllo frozen appaiato. **L’aggregazione rimane da scegliere; nessun training reale è stato eseguito.** Gli input con preprocessing denso storico vanno riacquisiti: le serie legacy a25 punti sono incompatibili e le mappe finali non consentono di aggiornare l’encoder. È predisposta una proposta32 pixel/cella da approvare e una valutazione streaming `dense-eval` sul supporto completo.
 
 Partire dal [runbook PowerShell del PC](docs/development/FINETUNING_V2_RUNBOOK_PC.md), quindi leggere [audit](docs/finetuning/V2_MEDIUM_ARCHITECTURE_AUDIT.md), [progetto](docs/finetuning/PARTIAL_FINETUNING_DESIGN.md), [budget cache/disco](docs/finetuning/CACHE_FEASIBILITY.md), [report dettagliato](docs/finetuning/IMPLEMENTATION_REPORT.md) e [decisioni successive](docs/finetuning/TOMORROW_DECISION_GUIDE.md). Usare un clone nuovo: non aggiornare codice, ambiente o cache del run Spatial attivo.
 

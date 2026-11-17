@@ -12,6 +12,7 @@ paths:
   frozen_work: null
   frozen_pixels: null
   frozen_spatial_run: null
+  legacy_series: null
   read_only_roots: []
 encoder:
   name: geotessera_v2_medium

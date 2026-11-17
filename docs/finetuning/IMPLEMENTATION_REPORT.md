@@ -8,7 +8,9 @@ Sono stati controllati repository, origin, branch, HEAD, worktree, modifiche loc
 
 L'audit architetturale è stato scritto e committato **prima dell'implementazione**, commit `576b8ec`. La PR del fine-tuning dipende dal branch fix della Spatial CNN e deve essere revisionata lì, senza merge automatico. L'elenco aggiornato dei commit della consegna è nella PR; questo report non contiene uno SHA autoreferenziale del proprio futuro commit.
 
-Non è stato contattato il PC universitario. Nessun Sentinel o nuovo checkpoint è stato scaricato, nessuna campagna scientifica o cache massiva è stata avviata. I soli processi Python locali osservati inizialmente erano strumenti dell'editor. Il run Spatial universitario e i suoi output non sono stati ispezionati né modificati.
+Non è stato contattato il PC universitario. Nessun Sentinel o nuovo checkpoint è stato scaricato, nessuna campagna scientifica o cache massiva è stata avviata. I soli processi Python locali osservati inizialmente erano strumenti dell'editor. Durante la verifica finale il branch fix è avanzato a `36e4bb846f4eb99c4099244a113f269670b33190` con soli aggiornamenti del handoff. Sono stati incorporati senza merge/force push i due commit documentali, tramite cherry-pick (`79d6c7f`, `fe01c50`). La base codice resta invariata a1737b1f.
+
+Il run Spatial universitario e i suoi output non sono stati ispezionati né modificati.
 
 ## Audit e prova sul modello reale
 
@@ -29,6 +31,7 @@ I numeri di tensori aggiornati non sono conteggi di elementi scalari; questi ult
 | `io.py` | Root separate/proprietà, SHA/riletture, checkpoint immutabili, progress e retry Windows |
 | `validation.py` | Probe checkpoint reale, aggiornamenti effettivi, confronto campionario con mappe frozen r2 e gate training |
 | `training.py` | Normalizzazione iniziale training-only, AdamW, MSE cella, CV AOI, refit, Liguria, resume RNG/optimizer/scaler |
+| `dense_evaluation.py` | Streaming adattato sul supporto completo, checkpoint OOF/refit, staging limitato e ripresa per tile/AOI |
 | `comparison.py` | Nuovo frozen/partial appaiato, popolazioni identiche, delta macro-AOI e bootstrap AOI |
 | `cli.py`, `__init__.py` | Orchestrazione, dry-run, smoke supervisionato, monitor senza handle persistenti |
 | `configs/v2_partial_finetuning.yaml` | Parametri scientifici non decisi lasciati null; aggregazione undecided |
@@ -70,3 +73,13 @@ Non è implementato un trainer di corpus da cache intermedia: il prototipo FP32 
 Sul PC restano da eseguire: verifica degli output Spatial attuali, scelta dell'aggregazione, smoke reale entro il budget o diagnosi del timeout, confronto input/frozen con copertura dichiarata, misura risorse su supporto rappresentativo, decisione sampling/LR/batch/epoche e destinazione disco, acquisizione approvata e solo poi controllo frozen + partial su CV, refit e valutazione Liguria. Il training scientifico e l'acquisizione massiva non sono stati avviati da questa sessione.
 
 La preferenza resta N=2, ma non è certificata sostenibile per tutte le celle su 16 GB. N=1 riduce parametri/stati ed è una candidata esplicita se il pilot lo richiede; N=3 aumenta molto il costo. La raccomandazione cache è online. Dense Mean e Spatial CNN sono entrambe predisposte; la scelta finale resta all'utente.
+
+## Aggiornamento essenziale del handoff durante la consegna
+
+I nuovi documenti del PC precisano che le serie legacy a25 punti esistono: non sono utilizzabili per questo esperimento a causa di S1 10log10, S2 nearest e DOY limitato. Sono state aggiunte alle root protette configurabili e al doctor come artefatto incompatibile escluso. Nessuna conversione è implementata.
+
+La scelta ora fissata dal handoff è acquisire un campione dei pixel originali V1 per ogni cella, usando le regole dense storiche. Il gate benchmark richiede uniform_pixels; full_support è escluso dal training e center_windows rimane tecnico. La proposta motivata è32, seed20260925, fino a4.252.800 contributi. La config dedicata v2_partial_sample32.yaml lascia approved=false: il download è indipendente da testa/LR ma richiede approvazione esplicita del supporto. L'aggregazione resta undecided.
+
+È stato aggiunto dense-eval per entrambe le head. Questo comando riusa lo streaming originale, applica i veri checkpoint adattati e non spaccia i suoi output per una cache r1/r2. Sviluppo OOF usa il modello del fold che esclude ogni AOI; Liguria usa refit. Supporto e conteggi sono quelli storici completi, selezione invariata sul campione. Produce metriche/predizioni dense separate e un protocollo nuovo; gestisce celle multi-tile/multi-UTM senza ricampionamento. Il raw transitorio nuovo è eliminato solo dopo commit della tile; le mappe nuove solo dopo commit dell'AOI. Tutte le sorgenti/cache/checkpoint preesistenti restano intatti. È l'unica pulizia automatica, necessaria per lo streaming e confinata a staging di proprietà del nuovo run. Test sintetici verificano entrambe le aggregazioni e resume senza ulteriori acquisizioni delle AOI concluse.
+
+Il runbook è aggiornato con acquisizione32 indipendente e dense-eval, stime dichiarate del PC e controllo spazio. Gli esiti finali qui sotto sostituiscono quelli intermedi.

@@ -70,6 +70,7 @@ def blockers(cfg, stage='train'):
         if not cfg['paths'].get(name):result.append('Percorso mancante: '+name)
     if cfg['sampling']['method']=='undecided':result.append('Sampling ancora undecided')
     if not cfg['sampling']['approved']:result.append('Sampling non approvato esplicitamente')
+    if cfg['experiment']['profile']=='benchmark' and cfg['sampling']['method']!='uniform_pixels':result.append('Handoff aggiornato: benchmark su campione fisso uniform_pixels; full support solo dense-eval, finestre solo smoke')
     if stage=='train':
         if cfg['aggregation']['method']=='undecided':result.append('aggregation=undecided: training bloccato')
         for name in ['learning_rate_encoder','learning_rate_head','batch_size','epochs']:

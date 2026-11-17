@@ -20,7 +20,7 @@ PROTOCOL='finetune-v2-r1'
 
 def checked_roots(cfg):
     paths=cfg['paths']
-    protected=[paths.get(k) for k in ['reference','catalog_root','frozen_work','frozen_spatial_run','frozen_pixels']]
+    protected=[paths.get(k) for k in ['reference','catalog_root','frozen_work','frozen_spatial_run','frozen_pixels','legacy_series']]
     protected+=paths.get('read_only_roots',[])
     roots=[Path(paths[k]).resolve() for k in ['raw_root','output_root'] if paths.get(k)]
     for root in roots:separate_output(root,protected)

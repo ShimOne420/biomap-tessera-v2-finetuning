@@ -37,6 +37,7 @@ def doctor(cfg,probe=False,inputs=False):
     except ImportError:result['ram']='psutil not installed; consult OS; no dependency installed automatically'
     checkpoint=cfg['encoder']['checkpoint']
     result['checkpoint_verified']=bool(checkpoint and Path(checkpoint).is_file() and digest(checkpoint)==WEIGHTS_SHA256)
+    result['legacy_series_policy']='INCOMPATIBLE_READ_ONLY_NOT_USED: nearest S2, 10log10 S1 and capped DOY cannot reproduce dense historical inputs'
     for name in ['raw_root','output_root']:
         value=cfg['paths'][name]
         if value:
@@ -124,7 +125,7 @@ def report(cfg,run_id,compare_run=None):
 def parser():
     p=argparse.ArgumentParser(description='GeoTESSERA V2 Medium partial FT, namespace isolato; nessuna decisione scientifica implicita')
     sub=p.add_subparsers(dest='action',required=True)
-    for name in ['doctor','acquire','train','evaluate','report','smoke']:
+    for name in ['doctor','acquire','train','evaluate','report','smoke','dense-eval']:
         q=sub.add_parser(name,help=name+' nel nuovo namespace finetune-v2-r1')
         q.add_argument('--config',default='configs/v2_partial_finetuning.yaml')
         q.add_argument('--set',action='append',default=[],metavar='SEZIONE.CHIAVE=VALORE')
@@ -138,6 +139,7 @@ def parser():
             q.add_argument('--verify-inputs',action='store_true',help='Confronta raw acquisiti con pixel frozen, copertura esplicita')
         if name=='train':q.add_argument('--phase',choices=['pilot','cv','refit'],default='cv')
         if name=='smoke':q.add_argument('--limit-seconds',type=int,default=900)
+        if name=='dense-eval':q.add_argument('--dense-pixel-batch',type=int,help='Batch inferenza densa FP32 esplicito, non il batch celle del training')
         if name=='report':q.add_argument('--compare-run',help='Controllo nuovo frozen con stessa testa/seed/supporto, OOF e/o Liguria')
     q=sub.add_parser('monitor',help='Monitor JSON in sola lettura, anche da terminale separato')
     q.add_argument('--progress',required=True);q.add_argument('--interval',type=float,default=5);q.add_argument('--once',action='store_true')
@@ -157,8 +159,13 @@ def main(argv=None):
     if cfg['execution']['device'].startswith('cuda'):os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG',':4096:8')
     if cfg['experiment']['profile']=='synthetic':raise ValueError('Profilo synthetic riservato alle fixture pytest, non alla CLI scientifica')
     if args.dry_run:
-        from .data import estimates
-        result={'doctor':doctor(cfg),'plan':estimates(cfg),'effective_config':cfg}
+        if args.action=='dense-eval':
+            from .dense_evaluation import dense_plan
+            plan=dense_plan(cfg)
+        else:
+            from .data import estimates
+            plan=estimates(cfg)
+        result={'doctor':doctor(cfg),'plan':plan,'effective_config':cfg}
     elif args.action=='doctor':result=doctor(cfg,args.probe,args.verify_inputs)
     elif args.action=='acquire':
         from .data import acquire
@@ -170,6 +177,9 @@ def main(argv=None):
     elif args.action=='evaluate':
         from .training import evaluate
         result=evaluate(cfg,args.run_id)
+    elif args.action=='dense-eval':
+        from .dense_evaluation import dense_evaluate
+        result=dense_evaluate(cfg,args.run_id,args.dense_pixel_batch,args.resume)
     else:result=report(cfg,args.run_id,args.compare_run)
     print(json.dumps(result,ensure_ascii=False,indent=2,default=str),flush=True)
     return result

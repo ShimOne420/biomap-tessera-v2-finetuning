@@ -6,7 +6,7 @@
 
 | Artefatto | Provenienza/formato e uso | Disponibilità e integrità |
 |---|---|---|
-| Input Sentinel annuali | S2 uint16 `[N,T2,10]`, mask bool `[N,T2]`; S1 asc/desc int16 `[N,Ta/Td,2]`; DOY int16 | Assenti sul PC secondo handoff. Da acquisire nella nuova raw-root, anno 2020, preprocessing storico |
+| Input Sentinel annuali | S2 uint16 `[N,T2,10]`, mask bool `[N,T2]`; S1 asc/desc int16 `[N,Ta/Td,2]`; DOY int16 | Le serie **dense storiche** sono assenti sul PC secondo handoff aggiornato. Da acquisire nella nuova raw-root, anno 2020, preprocessing storico |
 | Medie dense V2 | `F:\biomap_dense_public\work\v2.parquet`, 128 float per cella e colonne target/geografia | Dichiarate dal PC; non aperte dal Mac. Non permettono backward encoder |
 | Mappe frozen V2 | `C:\BioMAP\v2_spatial_pixels_r2\pixel_embeddings\<aoi>\<tile>.npy`, float32 `[N,128]`, sidecar SHA/geometry/order | Circa 50 GB dichiarati; da verificare sul PC. Ordine `geometry.npz`, CRS/transform nel reference. Non sono stati intermedi |
 | Checkpoint Medium | `student_medium.pt`, 84.163.403 byte, SHA `3823be7d…941ee96e` | Copia locale già presente verificata sul Mac, caricamento strict e forward/backward riusciti; percorso PC da verificare con doctor |
@@ -14,6 +14,12 @@
 | Reference | `F:\biomap_dense_public\reference`, parquet celle/target/fold, lookup NPY, geometrie NPZ/JSON | 132.900 celle/273 tile dichiarate; loader controlla manifest e membership quando eseguito sul PC |
 
 Le dimensioni e i percorsi PC sono informazioni fornite dal handoff, non osservazioni live. I NPZ `chunks/tile.npz` legacy contengono somme/conteggi, non vanno interpretati come serie Sentinel. Il riferimento completo ai metadati di normalizzazione, dimensioni e pesi è nell'audit architetturale. L'anno/checkpoint delle mappe deve essere provato dai marker della campagna, non dedotto dal nome di cartella.
+
+## Serie legacy esistenti: incompatibili, non riusate
+
+L'aggiornamento `36e4bb8` del PC corregge il primo handoff: esistono `C:\Users\brome\Desktop\BIOMAP_TESSERA_V2\data\msa_v1_liguria\series\<cell_id>\series.npz` e manifest per tutte le 132.900 celle, circa 108 KB/cella e 14 GB totali. Array raw a 25 punti, S2 uint16 `[25,T2,10]`, S1 int16 `[25,T,2]`, mask/DOY e points `[25,2]`; esempio T2=140, Ta=60, Td=120. Disponibilità e dimensioni sono riferite dal PC, non verificate dal Mac.
+
+Il protocollo è stratified-native-cell-v2-power-rtc-v1: S2 nearest, S1 10·log10, DOY limitato a365. La trasformazione 2s−10000 non recupera esattamente arrotondamento/clipping, né risolve S2/DOY: non si tenta una conversione. Restano protette in sola lettura, escluse da training e valutazione. Non equivalgono agli input densi storici richiesti.
 
 ## Confine e tensori necessari
 
@@ -54,3 +60,9 @@ La memoria per stati/pesi non misura la VRAM completa. Il grafo del suffisso, at
 Il prototipo confronta online e cached FP32 a parità di pesi in eval, e in train con seed identico per il Dropout del suffisso/fusione. Il prefisso resta sempre eval. Il caricamento rifiuta prefissi di pesi o confine diversi e verifica SHA. Test di backward verificano che la cache non annulli il gradiente del suffisso. Le tolleranze sono 2e-5; questi test sintetici non autorizzano FP16/BF16 né un corpus cached.
 
 La decisione finale di budget richiede lo smoke reale, i contatori STAC/reader, spazio libero corrente e tempi osservati di acquisizione e di una cella training. Il risultato può legittimamente essere **INSUFFICIENT_INFORMATION** per durata e batch GPU anche se la raccomandazione online è già solida.
+
+## Proposta aggiornata: 32 pixel e dense-eval
+
+Si propone **32 contributi per cella**, non ancora approvati nel YAML, fino a 4.252.800 pixel. A 2.956 byte/pixel riferiti dal PC sono circa 12,57 GB di raw, circa 25,14 GB con copie giornaliere prima degli overhead. Con 64 il tetto sale a 8.505.600 pixel, 25,14 GB raw e 50,29 GB con copie: non compatibile con 51 GB liberi e riserva20 GiB sulla stessa unità. Per questo32 è il punto di partenza più prudente fra i due proposti; anche32 richiede budget congiunto di checkpoint e controllo frozen, non è un via libera automatico. Il handoff stima 12–25 ore di rete per entrambi, dato non misurato dal nuovo codice.
+
+Il training su tutti i pixel è escluso. `dense-eval` acquisisce in streaming una tile e conserva temporaneamente le mappe adattate di una sola AOI per gestire celle multi-tile/multi-UTM. Il dry-run distingue questo picco dal corpus raw completo. Il passaggio usa checkpoint fold-specifici per sviluppo e refit per Liguria; supporta entrambe le aggregazioni senza scegliere. Il PC riferisce 8–9 ore di pura codifica frozen e circa2,5 giorni per r1 completa: la campagna adattata completa resta una stima da calibrare, plausibilmente lunga e dominata da rete. Nessuna estrazione densa è stata avviata dal Mac.

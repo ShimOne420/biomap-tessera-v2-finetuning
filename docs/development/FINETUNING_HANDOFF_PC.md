@@ -38,12 +38,29 @@ Leggi prima `AGENTS.md`. Le regole di quel file restano valide; questo documento
 | Embedding V2 per pixel (r2) | `C:\BioMAP\v2_spatial_pixels_r2`, 50 GB: sola lettura |
 | Run Spatial CNN in corso | codice in `C:\BioMAP\spatial-code`, output in `C:\BioMAP\spatial_runs`: **non toccarli** |
 
-**Fatto decisivo per il fine-tuning:** sul PC **non sono conservati gli input Sentinel-1/2** (serie temporali
-grezze). r1 e r2 hanno tenuto solo gli embedding. Per aggiornare i pesi dell'encoder bisogna quindi riacquisire
-gli input da MPC.
+**Fatto decisivo per il fine-tuning:** le serie Sentinel-1/2 **dense** non sono conservate: r1 e r2 hanno tenuto
+solo gli embedding. Complete occuperebbero circa 294 GB (circa 2.956 byte per pixel), mentre lo spazio libero è
+circa 95 GB.
 
-Per riferimento, l'estrazione completa di r1 ha richiesto circa 2,5 giorni su 99,5 milioni di pixel, con la rete
-come limite. La strategia deve dichiarare:
+**Esistono però già, sul PC, le serie a 25 pixel per cella di tutte le 132.900 celle** (verificato il 17/11/2026):
+- **Dove:** `C:\Users\brome\Desktop\BIOMAP_TESSERA_V2\data\msa_v1_liguria\series\<cell_id>\series.npz`, con
+  `manifest.json` per cella. Circa 108 KB per cella, circa 14 GB in totale. Sola lettura.
+- **Protocollo:** `stratified-native-cell-v2-power-rtc-v1`, preparato dalla vecchia pipeline a 25 punti
+  (`probe_msa.py prepare`, config `configs/msa_v1_liguria.yaml`).
+- **Array:**
+  - `s2` (25, T_s2, 10) uint16, `mask` (25, T_s2), `s2_doys`;
+  - `asc` e `desc` (25, T, 2) int16, `asc_doys` e `desc_doys`;
+  - `points` (25, 2).
+  - Esempio: T_s2 = 140, asc 60, desc 120.
+- **Differenze rispetto al protocollo denso storico:**
+  - S1 in `10·log10`, quindi `(10·log10(x)+50)·200` invece di `20·log10`. Si converte in modo deterministico con
+    `2·s − 10000`, a meno di ±1 unità di arrotondamento: non identico al bit, da dichiarare.
+  - S2 al pixel più vicino, non bilineare.
+  - DOY limitato a 365.
+
+Proponi esplicitamente se usare queste serie, per esempio per un fine-tuning con loss sulla cella su 25 pixel,
+senza nessun download, oppure perché non bastano. Se servono nuovi download, riacquisire da MPC costa circa 12–25
+ore di rete anche per un campione di pixel, perché si leggono gli stessi blocchi COG. La strategia deve dichiarare:
 - quanti pixel o celle si acquisiscono;
 - come si campionano;
 - dove si salvano;

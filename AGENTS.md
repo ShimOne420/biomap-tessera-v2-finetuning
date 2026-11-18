@@ -1,5 +1,9 @@
 # BIOMAP: istruzioni per sviluppatori e agenti
 
+## Benchmark sampling frozen: ambito corrente
+
+Il nuovo percorso è `scripts/sampling_benchmark.py`, package `biomap_sampling`, branch `feature/sampling-benchmark` dalla base verificata `07dca6b`. Leggere [protocollo](docs/sampling_benchmark/PROTOCOL.md), [runbook PC](docs/sampling_benchmark/WINDOWS_RUNBOOK.md) e [report](docs/sampling_benchmark/IMPLEMENTATION_REPORT.md). Questa consegna autorizza infrastruttura e test sintetici, non acquisizioni Sentinel, run universitari o aggiornamenti dell'encoder. PR verso `feature/finetuning-v2`, nessun merge automatico. Conservare integralmente `biomap_spatial`, indice read-only, geometrie, target e fold. Nel nuovo package una vista di sviluppo blocca l'accesso a Liguria; il reader originale conserva le proprie verifiche globali di integrità. I nuovi cache/output devono essere disgiunti dagli alberi protetti. Il bridge in `biomap_finetune/data.py` è solo opt-in e non cambia acquisizione o default esistenti.
+
 ## Contesto e ambito
 
 Questo repository contiene codice di ricerca. Un clone di sviluppo è indipendente dal PC Windows universitario: non presumere di poter accedere a processi, cache, checkpoint, configurazioni o risultati di quel PC. La presenza di documentazione di un run non ne dimostra lo stato live.

@@ -1,5 +1,13 @@
 # BIOMAP — Spatial CNN su GeoTESSERA V2
 
+## Passo preparatorio corrente: benchmark del campionamento frozen
+
+Sul branch **`feature/sampling-benchmark`**, derivato da `feature/finetuning-v2` @ **`07dca6b`**, è disponibile una CLI separata: `scripts/sampling_benchmark.py`. Confronta S64, M128, S144, M64 e FULL-SUBSET con FULL, riusando reader r2 e Spatial CNN originali. La selezione è nested geografica 3×2, con normalizzazione ed early stopping interni, conferme fra seed e valutazione esterna densa. Liguria resta esclusa.
+
+Per l'agente sul PC: seguire il **[runbook PowerShell completo](docs/sampling_benchmark/WINDOWS_RUNBOOK.md)**, con percorsi reali, clone indipendente, doctor, smoke supervisionato, manifest/cache, screening, stime, resume e monitor da un secondo terminale. Leggere anche il **[protocollo scientifico](docs/sampling_benchmark/PROTOCOL.md)** e il **[report dettagliato dell'implementazione e dei test](docs/sampling_benchmark/IMPLEMENTATION_REPORT.md)**. Nessuna acquisizione Sentinel o campagna reale è stata eseguita da questa consegna; il nested richiede approvazione separata del budget. Un blocco encoder è soltanto una proposta per la fase futura.
+
+Le istruzioni storiche seguenti rimangono disponibili per riproducibilità; non sostituiscono il runbook del nuovo benchmark e non richiedono aggiornamenti al checkout del run attivo.
+
 Il percorso prioritario è ora **embedding autentici per pixel → Spatial CNN 2D mascherata → una previsione GLOBIO4 MSA per cella**. Il benchmark usa **127.909 celle di sviluppo, 17 AOI, tre fold geografici originali e 4.991 celle Liguria esterne**: 132.900 celle totali. Liguria è già osservata e rimane esclusa dalla selezione del modello.
 
 Il vecchio esperimento A su medie Dense/Conv1D non è più un passo da eseguire nella strategia principale. Il suo codice e i test restano disponibili per riproducibilità, insieme a B V1, r1 e r2-fast. Il controllo Mean MLP del nuovo esperimento è opzionale e usa le medie degli **stessi pixel**, non una mappa inventata dai vettori del vecchio parquet.

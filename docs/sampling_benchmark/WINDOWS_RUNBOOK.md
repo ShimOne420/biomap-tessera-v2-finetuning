@@ -1,6 +1,6 @@
 # Runbook Windows — benchmark sampling frozen
 
-Usare un clone nuovo. Non modificare `C:\BioMAP\spatial-code`, l'ambiente del run storico, l'indice o gli output esistenti. Questo documento prepara comandi per l'agente PC: non autorizza automaticamente screening o campagna reale. Ambiente PowerShell5.1/Python3.12, niente bash/attivazione venv. Attendere risorse disponibili; non avviare nuovi lavori pesanti in parallelo al run universitario.
+Usare un clone nuovo. Non modificare `C:\BioMAP\spatial-code`, l'ambiente del run storico, l'indice o gli output esistenti. Questo documento prepara comandi per l'agente PC: non autorizza automaticamente screening o campagna reale. Ambiente PowerShell 5.1/Python 3.12, niente bash/attivazione venv. Attendere risorse disponibili; non avviare nuovi lavori pesanti in parallelo al run universitario.
 
 ## 1. Clone, ambiente separato e test CPU
 
@@ -50,9 +50,9 @@ Invoke-Sampling doctor @Common --dry-run
 Invoke-Sampling doctor @Common
 ```
 
-Doctor è read-only e può richiedere minuti per verificare SHA di48GB. Verifica reader/indice, popolazione sviluppo e fonte canonica del riferimento0,17602, se disponibile. Le metriche storiche non sono la soglia del nuovo nested. Le vecchie serie Sentinel25punti non vengono lette o convertite. CUDA disponibile non significa che lo smoke o il benchmark siano già validati.
+Doctor è read-only e può richiedere minuti per verificare SHA di 48 GB. Verifica reader/indice, popolazione sviluppo e fonte canonica del riferimento 0,17602, se disponibile. Le metriche storiche non sono la soglia del nuovo nested. Le vecchie serie Sentinel a 25 punti non vengono lette o convertite. CUDA disponibile non significa che lo smoke o il benchmark siano già validati.
 
-Il piano distingue costi stimati e misurati.12ore vale solo come budget screening. Il nested può richiedere48–96fit interni, più refit/valutazioni: non promettere il completamento in12ore. I costi di cache/hash/valutazione esterna ancora non misurati sono null, non zero. Controllare spazio separatamente su C e F.
+Il piano distingue costi stimati e misurati.12 ore vale solo come budget screening. Il nested può richiedere48–96 fit interni, più refit/valutazioni: non promettere il completamento in 12 ore. I costi di cache/hash/valutazione esterna ancora non misurati sono null, non zero. Controllare spazio separatamente su C e F.
 
 ## 3. Smoke reale, soltanto quando autorizzato
 
@@ -62,7 +62,7 @@ Invoke-Sampling smoke @Smoke --dry-run
 Invoke-Sampling smoke @Smoke
 ```
 
-Otto celle di una sola AOI di sviluppo, una epoca tecnica S64, nessuna selezione geografica o scientifica. Budget totale900s, inclusi lettura/verifica/cache/fit/valutazione. Se non termina, è uno smoke non completato: i validi restano e si può riprendere con `Invoke-Sampling smoke @Smoke --resume`. Non si riducono dati/date per ottenere un successo. Output: cache dedicata, `technical_predictions.parquet`, `smoke_result.json` e `progress.json`. Le metriche smoke non misurano generalizzazione.
+Otto celle di una sola AOI di sviluppo, una epoca tecnica S64, nessuna selezione geografica o scientifica. Budget totale900 s, inclusi lettura/verifica/cache/fit/valutazione. Se non termina, è uno smoke non completato: i validi restano e si può riprendere con `Invoke-Sampling smoke @Smoke --resume`. Non si riducono dati/date per ottenere un successo. Output: cache dedicata, `technical_predictions.parquet`, `smoke_result.json` e `progress.json`. Le metriche smoke non misurano generalizzazione.
 
 ## 4. Preparazione geometrica e cache, dopo autorizzazione del benchmark
 
@@ -73,7 +73,7 @@ Invoke-Sampling cache @Common
 
 Output C: piano firmato, shard geometrici e vettori float32 condivisi, SQLite nuovo, momenti per configurazione. Nessuna copia dell'intera campagna FULL e nessuna scrittura nell'indice originale. Durata reale da misurare sul PC: una passata di estrazione più serializzazione, non un tempo garantito. Resume: aggiungere `--resume` allo stesso comando. La cache completata viene verificata e riusata, non sovrascritta.
 
-Il manifest registra anche celle insufficienti e RF reale. FULL-SUBSET deve contenere circa11.000celle globali; i fit usano solo il sottoinsieme appartenente al loro training. Le altre configurazioni mantengono127.909celle di sviluppo.
+Il manifest registra anche celle insufficienti e RF reale. FULL-SUBSET deve contenere circa 11.000 celle globali; i fit usano solo il sottoinsieme appartenente al loro training. Le altre configurazioni mantengono 127.909 celle di sviluppo.
 
 ## 5. Screening interno, dopo autorizzazione
 
@@ -82,7 +82,7 @@ Invoke-Sampling screen @Common --dry-run
 Invoke-Sampling screen @Common
 ```
 
-Sette fit: FULL42/FULL43, quattro candidati42 e FULL-SUBSET42. Outer0 non sceglie nulla: training interno gruppo1, validation interna gruppo2. Il margine completo nested richiederà anche la suddivisione interna inversa.
+Sette fit: FULL 42/FULL 43, quattro candidati 42 e FULL-SUBSET42. Outer0 non sceglie nulla: training interno gruppo1, validation interna gruppo2. Il margine completo nested richiederà anche la suddivisione interna inversa.
 
 Budget12h con arresto controllato e resume: `Invoke-Sampling screen @Common --resume`. Un esito `BUDGET_EXHAUSTED_NOT_COMPLETE` non significa che tutti i fit siano conclusi. Checkpoint/RNG validi sono conservati; l'epoca incompleta viene ricalcolata. Tempi per epoca, picco GPU e RAM di processo sono nei fit. Lo scratch validation può essere sostituito solo all'interno del nuovo workspace posseduto.
 
@@ -123,4 +123,4 @@ Leggere `report.md`, `metrics_summary.csv`, predizioni interne/esterne, decision
 
 Il report deve distinguere la popolazione FULL-SUBSET, il riferimento storico ottimista e il nuovo FULL nested. La valutazione esterna dei vincitori riguarda la procedura di selezione, non una configurazione globale scelta a posteriori.
 
-Prima di qualsiasi acquisizione futura verificare il manifest esatto, lo spazio corrente per unità, il budget dei checkpoint e l'approvazione dell'utente. I raw stimati M128/S144 non entrano nei dischi dichiarati con la riserva attuale; compressione non misurata non è una soluzione dimostrata. Non usare le vecchie serie25punti e non riscaricare input a ogni epoca. Un blocco encoder è soltanto la raccomandazione iniziale per il successivo pilot, non un run autorizzato.
+Prima di qualsiasi acquisizione futura verificare il manifest esatto, lo spazio corrente per unità, il budget dei checkpoint e l'approvazione dell'utente. I raw stimati M128/S144 non entrano nei dischi dichiarati con la riserva attuale; compressione non misurata non è una soluzione dimostrata. Non usare le vecchie serie a 25 punti e non riscaricare input a ogni epoca. Un blocco encoder è soltanto la raccomandazione iniziale per il successivo pilot, non un run autorizzato.

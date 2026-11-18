@@ -195,6 +195,10 @@ def test_nested_tiny_end_to_end_no_encoder_no_outer_selection(ready,monkeypatch)
     monkeypatch.setattr(encoder,'load_medium',lambda *a:pytest.fail('encoder forbidden'))
     study=Study(source,cfg)
     try:
+        progress=[];update=study.progress.update
+        def record_progress(*args,**kw):
+            progress.append(kw.copy());return update(*args,**kw)
+        monkeypatch.setattr(study.progress,'update',record_progress)
         study.screen();decision=study.confirm(0)
         assert decision['outer_targets_used'] is False and decision['approved_for_acquisition'] is False
         original=(Path(cfg['paths']['output_root'])/'outer_0/decision.json').read_bytes()
@@ -212,6 +216,10 @@ def test_nested_tiny_end_to_end_no_encoder_no_outer_selection(ready,monkeypatch)
         assert budget['time']['dense_outer_seconds']>0
         assert budget['storage']['cache_current_bytes_measured']>0
         assert (Path(cfg['paths']['output_root'])/'resources_summary.csv').exists()
+        refits=[row for row in progress if row.get('phase')=='outer_refit']
+        assert refits and {r['fold'] for r in refits}=={0,1,2}
+        assert {r['seed'] for r in refits}=={42,43,44}
+        assert all(r['inner_train'] is None and r['refit_epochs']>0 for r in refits)
     finally:study.close()
 
 

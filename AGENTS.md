@@ -8,7 +8,7 @@ Il nuovo percorso è `scripts/sampling_benchmark.py`, package `biomap_sampling`,
 
 Questo repository contiene codice di ricerca. Un clone di sviluppo è indipendente dal PC Windows universitario: non presumere di poter accedere a processi, cache, checkpoint, configurazioni o risultati di quel PC. La presenza di documentazione di un run non ne dimostra lo stato live.
 
-Il lavoro infrastrutturale e integrato. Per la Spatial CNN corrente usare `feature/spatial-cnn-v2`, partito dal main verificato `b7da382`. Il percorso prioritario e `scripts/spatial_cnn.py`; non cancellare A/B o modificare le loro entry point. Non fare push su `main` e non effettuare merge automatici. Controllare sempre `git status`, branch, HEAD, origin e worktree prima di modificare file. Non sovrascrivere lavoro non committato, non fare reset/clean/force push. Usare branch e output separati per esperimenti paralleli. Non fare checkout o pull sotto un processo scientifico attivo.
+Il lavoro infrastrutturale è integrato. La Spatial CNN storica nasce su `feature/spatial-cnn-v2` dal main verificato `b7da382` e usa `scripts/spatial_cnn.py`; il benchmark corrente segue invece la sezione precedente. Non cancellare A/B o modificare le loro entry point. Non fare push su `main` e non effettuare merge automatici. Controllare sempre `git status`, branch, HEAD, origin e worktree prima di modificare file. Non sovrascrivere lavoro non committato, non fare reset/clean/force push. Usare branch e output separati per esperimenti paralleli. Non fare checkout o pull sotto un processo scientifico attivo.
 
 ## Ambiente e verifica
 

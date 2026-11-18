@@ -181,6 +181,8 @@ class Study:
                     mark=json.loads(final.read_text(encoding='utf-8'))
                     if mark['identity']!=tag or digest(folder/'external.parquet')!=mark['sha256']:raise ValueError('Valutazione esterna corrotta')
                     continue
+                self.progress.update(force=True,phase='outer_refit',fold=outer,mode=mode,seed=seed,refit_epochs=epochs,
+                    inner_train=None,inner_validation=None)
                 model,norm,_=training.fit(sampled,self.source,train,None,self.cfg,folder,tag,seed,self.resume,epochs,deadline,self.progress)
                 if digest(path)!=decision_sha:raise ValueError('Decisione modificata durante refit')
                 evaluation_started=time.perf_counter()

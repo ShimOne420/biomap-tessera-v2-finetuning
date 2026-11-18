@@ -104,7 +104,7 @@ Invoke-Sampling run @Common --approved-plan $ApprovedPlan --phase outer --resume
 Invoke-Sampling report @Common
 ```
 
-Questi comandi operano sui tre outer; `--outer-fold 0` limita una fase al primo. Controlli FULL prima dei candidati; decisioni sigillate prima delle metriche esterne. Refit: nuova CNN, stesso seed, mediana di due migliori epoche con mezzi arrotondati verso l'alto. FULL e candidati usano identica regola.
+Questi comandi operano sui tre outer; `--outer-fold 0` limita controls/candidates/confirm/outer al primo. Non applicarlo a recommend o all: la raccomandazione globale richiede tutti e tre gli outer interni. Controlli FULL prima dei candidati; decisioni sigillate prima delle metriche esterne. Refit: nuova CNN, stesso seed, mediana di due migliori epoche con mezzi arrotondati verso l'alto. FULL e candidati usano identica regola.
 
 Se la raccomandazione globale richiede conferme aggiuntive interne, vengono eseguite nella fase `recommend`. FULL-SUBSET rimane separato dalla selezione. Non viene generata alcuna acquisizione o avviato fine-tuning. In assenza di candidati sufficientemente vicini, l'esito può essere “nessun campionamento ammissibile”.
 

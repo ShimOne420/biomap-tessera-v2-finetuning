@@ -6,7 +6,7 @@
 name: tests
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/finetuning-v2]
   push:
     branches: [main]
   workflow_dispatch:

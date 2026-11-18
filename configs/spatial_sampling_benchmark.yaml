@@ -1,0 +1,50 @@
+# Benchmark frozen preregistrato; nessuna acquisizione Sentinel o esecuzione encoder.
+paths:
+  # Input gia disponibili, indice esistente read-only; cache/output sempre nuovi e disgiunti.
+  pixel_root: null
+  reference: null
+  index_root: null
+  cache_root: null
+  output_root: null
+  historical_run: null
+  read_only_roots: []
+sampling:
+  # Geometria indipendente da MSA; suite completa e seed geografico del piano.
+  seed: 20260925
+  modes: [S64, M128, S144, M64, FULL-SUBSET]
+  subset_cells: 11000
+  min_valid_pixels: 1
+cache:
+  # Float32 grezzi condivisi; scratch validation di un solo gruppo su output_root.
+  cells_per_shard: 256
+  mmap_limit: 4
+  validation_max_gib: 20
+training:
+  # Sola Spatial CNN originale FP32; normalizzazione training-only, mai encoder.
+  epochs: 50
+  patience: 8
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  clip_grad: 1.0
+  batch_cells: 4
+  accumulate_cells: 16
+  num_workers: 2
+  worker_timeout_seconds: 120
+  initial_seed: 42
+  control_seeds: [42, 43]
+  confirmation_seeds: [42, 43, 44]
+execution:
+  # CPU per sviluppo; --device cuda:0 solo sul PC. Riserva PER volume, non sommabile.
+  device: cpu
+  reserve_gib: 20
+  screen_outer_fold: 0
+  screen_budget_hours: 12
+  smoke_seconds: 900
+  smoke_aoi: abruzzo_gran_sasso
+  smoke_cells: 8
+decision:
+  # Margine esplorativo FULL42/43: nessuna prova di non inferiorita o approvazione raw.
+  rule: measured_full_seed_noise
+  bootstrap_samples: 2000
+  bootstrap_seed: 20260925
+  recommendation_only: true

@@ -4,6 +4,7 @@
 # Parametri: full_support/uniform_pixels/center_windows, K/lato, block_pixels e thread I/O; uso tramite acquire.
 # Risorse: CPU/rete/disco; nessuna riduzione temporale. Ripresa per giorno/blocco, checksum prima del riuso.
 # Dataset: memmap locali aperti e chiusi in ogni accesso; worker spawn picklable, default zero worker.
+# Bridge sampling opt-in: ricostruisce richieste dal manifest frozen senza acquisire, ricampionare o approvare dati.
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
@@ -21,6 +22,25 @@ from .config import require_ready
 from .io import checked_roots,claim_root,signature,digest,save_json,commit_arrays,load_arrays,disk_budget,Progress
 
 RAW_KEYS=('s2','mask','s2_doys','asc','asc_doys','desc','desc_doys')
+
+
+def spatial_sampling_requests(manifest_cell,mode):
+    """Opt-in contract bridge only: preserve tile, geometry positions, masks and contribution weights.
+
+    No acquisition, encoder call, default change or implicit approval. Temporal Sentinel masks remain
+    a future real-data validation requirement; benchmark embeddings cannot reconstruct those masks.
+    """
+    from biomap_sampling.data import future_requests
+    return future_requests(manifest_cell,mode)
+
+
+def spatial_sampling_requests_from_plan(plan_root,cell_id,mode,reference_root):
+    """Verified exact bridge for future authorized raw acquisition; never invokes an encoder/network."""
+    from biomap_sampling.data import Plan,future_requests,verify_requests
+    plan=plan_root if isinstance(plan_root,Plan) else Plan(plan_root)
+    result=future_requests(plan.cell(cell_id),mode)
+    verify_requests(result,reference_root);result['plan_identity']=plan.manifest['identity']
+    return result
 
 
 def reference(cfg):

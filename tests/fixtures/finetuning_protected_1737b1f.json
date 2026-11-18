@@ -1,0 +1,46 @@
+{
+  "base_commit": "1737b1fdd30d5de9a50967363ca39042b26a055b",
+  "files": {
+    "src/biomap_spatial/sources.py": {
+      "sha256_git_blob": "8ffae39178f19da9d580f6370e5fbdaaab3d3e6c1689974b8ebaa53f56e63d16",
+      "sha256_checked_bytes": "8ffae39178f19da9d580f6370e5fbdaaab3d3e6c1689974b8ebaa53f56e63d16",
+      "comparison": "normalized_lf"
+    },
+    "src/biomap_spatial/support.py": {
+      "sha256_git_blob": "00c7f5ab586bf2bcb46b349447ec4b5cba9410c265ee562a0c8c8d95cd2dbd32",
+      "sha256_checked_bytes": "00c7f5ab586bf2bcb46b349447ec4b5cba9410c265ee562a0c8c8d95cd2dbd32",
+      "comparison": "normalized_lf"
+    },
+    ".gitattributes": {
+      "sha256_git_blob": "04079d749bb7879ecb7e17b2d4d5a72df3c80f8d3372cb2da80e8059a6cea2fa",
+      "sha256_checked_bytes": "04079d749bb7879ecb7e17b2d4d5a72df3c80f8d3372cb2da80e8059a6cea2fa",
+      "comparison": "normalized_lf"
+    },
+    "src/biomap_v2/campaign/streaming.py": {
+      "sha256_git_blob": "22d483993fe303b6b92e9c7516e95a461e1ed0dca18abc9d3fec965834626f95",
+      "sha256_checked_bytes": "22d483993fe303b6b92e9c7516e95a461e1ed0dca18abc9d3fec965834626f95",
+      "comparison": "raw_eol_lf"
+    },
+    "src/biomap_v2/raster_cache.py": {
+      "sha256_git_blob": "a818e3612029e582c36df76404182ee186707ecafe05400de5a36b01f8c09ae4",
+      "sha256_checked_bytes": "1cbc8e9a41b6d445cc650de9a738a10006c0ea3bd079e6c590d36389c2287db8",
+      "comparison": "raw_eol_crlf"
+    },
+    "src/biomap_v2/data.py": {
+      "sha256_git_blob": "826c41f5cba2d3a554752a05f611998d8ee553bfbdd11e2741cee40afbf16a4e",
+      "sha256_checked_bytes": "bd81b43f0fb5f4977e420f52ecb238689941ad6554a0d6030670ee5d349f6849",
+      "comparison": "raw_eol_crlf"
+    },
+    "src/biomap_v2/reference.py": {
+      "sha256_git_blob": "33fb09cf90f662e50a986d7b170b916ae08e9e83635eb85717ae1860c1bf6978",
+      "sha256_checked_bytes": "018c49170a305c0791c3b87ee13e9e4d622a8009f13c56f3a7cf333c20e2b769",
+      "comparison": "raw_eol_crlf"
+    },
+    "src/biomap_v2/encoder.py": {
+      "sha256_git_blob": "f8f08a60612545b74da50af7d357a17873f42f34b0a2041fdd0fe8ecc21042a7",
+      "sha256_checked_bytes": "d556151970231476f5957e6daced8dae81ec9ff4db8fd10c7a11f11e234a1926",
+      "comparison": "raw_eol_crlf"
+    }
+  },
+  "derivation": "Published git blobs at base commit; four r1 CRLF checkout conversions per unchanged .gitattributes; other non-pinned sources compared normalized LF"
+}

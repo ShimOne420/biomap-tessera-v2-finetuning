@@ -1,0 +1,55 @@
+{
+  "code_commit": "ef1f3d7",
+  "date": "2026-11-17",
+  "platform": "macOS 26.6.2 arm64 CPU",
+  "python": "3.12.14",
+  "torch": "2.10.0",
+  "full_suite": {
+    "passed": 243,
+    "failed": 0,
+    "skipped": 1,
+    "warnings": 1446,
+    "seconds": 64.19
+  },
+  "clean_clone_suite": {
+    "passed": 243,
+    "failed": 0,
+    "skipped": 1,
+    "warnings": 1446,
+    "seconds": 73.64,
+    "dependencies": "existing dev venv reused; independent clean Git checkout"
+  },
+  "new_offline_cases": 30,
+  "skip_reason": "tests/test_dense_fast.py:277 Windows-specific sharing lock test",
+  "environment_check": "PASS syntax/imports/CPU backward",
+  "cuda_and_real_sentinel_validation": "NOT_RUN: university PC unavailable; no scientific run or satellite downloads",
+  "ci_url": "https://github.com/ShimOne420/biomap-tessera-v2-finetuning/actions/runs/44123439025",
+  "ci_status": "success",
+  "ci_code_commit": "ef1f3d78abbb4a53208cb07857e9fcca5865d8e6",
+  "ci_jobs": [
+    {
+      "os": "ubuntu-latest",
+      "passed": 243,
+      "failed": 0,
+      "skipped": 1,
+      "warnings": 1447,
+      "seconds": 112.33
+    },
+    {
+      "os": "macos-latest",
+      "passed": 243,
+      "failed": 0,
+      "skipped": 1,
+      "warnings": 1445,
+      "seconds": 167.17
+    },
+    {
+      "os": "windows-latest",
+      "passed": 244,
+      "failed": 0,
+      "skipped": 0,
+      "warnings": 1442,
+      "seconds": 322.6
+    }
+  ]
+}

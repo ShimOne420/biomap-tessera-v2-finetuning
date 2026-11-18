@@ -1,0 +1,55 @@
+{
+  "checkpoint_sha256": "3823be7db9d9cfc93f3c2a47c7699be82821ab4e1117d4d2befdb746941ee96e",
+  "bytes": 84163403,
+  "top_level_keys": [
+    "model",
+    "args"
+  ],
+  "architecture": {
+    "repr_dim": 128,
+    "latent_dim": 110,
+    "num_layers": 4,
+    "nhead": 4,
+    "dim_feedforward": 1792,
+    "max_seq_len": 256,
+    "enable_qk_norm": false,
+    "matryoshka_dims": "16,32,64,128"
+  },
+  "state_tensors": 114,
+  "state_parameter_elements": 21031506,
+  "sample_shapes": {
+    "s2_backbone.embedding.0.weight": [
+      440,
+      10
+    ],
+    "s2_backbone.transformer_encoder.layers.0.linear1.weight": [
+      1792,
+      440
+    ],
+    "dim_reducer.0.weight": [
+      1760,
+      880
+    ],
+    "dim_reducer.4.weight": [
+      128,
+      1760
+    ]
+  },
+  "partial_boundary_probes": [
+    {
+      "last_n": 1,
+      "max_absolute_error": 0.0,
+      "trainable_parameters": 6494594
+    },
+    {
+      "last_n": 2,
+      "max_absolute_error": 0.0,
+      "trainable_parameters": 11208818
+    },
+    {
+      "last_n": 3,
+      "max_absolute_error": 0.0,
+      "trainable_parameters": 15923042
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+# Configurazione scientifica: decisioni NON ancora prese, nessun training implicito.
+experiment:
+  name: biomap_v2_partial_finetuning
+  target: globio4_overall_msa_2020
+  profile: benchmark
+  seed: 20260925
+paths:
+  reference: null
+  raw_root: null
+  output_root: null
+  catalog_root: null
+  frozen_work: null
+  frozen_pixels: null
+  frozen_spatial_run: null
+  legacy_series: null
+  read_only_roots: []
+encoder:
+  name: geotessera_v2_medium
+  checkpoint: null
+finetuning:
+  method: partial
+  last_n_blocks: 2
+  train_output_projection: auto
+  train_normalization: auto
+aggregation:
+  method: undecided
+  head:
+    conv_channels: [64, 32]
+    hidden: 64
+    dropout: 0.1
+    kernel: 3
+    output: linear
+sampling:
+  method: undecided
+  approved: false
+  pixels_per_cell: null
+  window_side: null
+  smoke_aoi: abruzzo_gran_sasso
+  smoke_cells: 4
+training:
+  loss: mse
+  optimizer: adamw
+  encoder_mode: partial
+  learning_rate_encoder: null
+  learning_rate_head: null
+  batch_size: null
+  epochs: null
+  early_stopping: 8
+  pixel_batch: 8
+  num_workers: 0
+  precision: fp32
+  clip_grad: 1.0
+  activation_checkpointing: true
+  normalization: train_initial_pixel_standard
+cache:
+  mode: auto
+  allow_full_generation: false
+acquisition:
+  block_pixels: 8192
+  io_workers: 2
+  catalog_attempts: 3
+storage:
+  reserve_gib: 20
+execution:
+  device: cpu
+validation:
+  protocol: original_spatial_3fold
+  selection_metric: macro_aoi_rmse
+  rtol: 0.00002
+  atol: 0.00002

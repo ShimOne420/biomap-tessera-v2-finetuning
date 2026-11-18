@@ -62,6 +62,8 @@ Screening: sette fit su training interno gruppo1/validation gruppo2 dell'outer0,
 
 I costi temporali iniziali usano il riferimento PC520–590s/epoca, non una misura della nuova cache. Dopo il pilot il software usa le history disponibili, dichiarandone la provenienza. Cache/hash/valutazione finale non misurati rimangono null. Il report salva risorse per fit: picco CUDA e picco RAM del processo, con nota che la RAM dei worker e il picco incrementale del singolo fit non sono misurati separatamente.
 
+La strumentazione distingue tempo di training e validation a ogni epoca e tempo della passata densa esterna; esporta `resources_summary.csv`, misura i byte effettivi della cache e riporta il tempo della sua ultima invocazione completata, senza attribuirgli le invocazioni interrotte precedenti. Le mediane misurate sono descrittive di modalità/fold diversi, non promesse di durata per ogni candidato. Tutti questi campi sono verificati nel test nested sintetico.
+
 Per i raw futuri si usa la stima dichiarata2956byte/pixel. Lo spazio corrente viene letto per ogni destinazione, con riserva20GiB; C e F non si sommano. I raw M128/S144 non sono ammessi sui dischi descritti dal brief senza liberare spazio o dimostrare altra soluzione. Compressione e cache di attivazioni non vengono presentate come risparmi provati. Un blocco finale encoder è soltanto una proposta per un futuro pilot, senza alterare il percorso fine-tuning corrente.
 
 ## 8. Ripresa, Windows e monitor
@@ -98,4 +100,6 @@ Commit codice verificato: **5f57ea66b8c29141286a155fae2870beb8d5dc8d**. macOS26.
 
 L'unico skip della suite Mac è `tests/test_dense_fast.py:277`, blocco di condivisione specifico Windows. La suite emette1447 warning, prevalentemente nelle fixture geospaziali preesistenti: non sono stati disabilitati o trasformati in skip. Il check osserva anche il caso S1 di frontiera già documentato; suite verde non è garanzia di aritmetica bit-identica fra piattaforme. MPS non richiesto e non usato.
 
-Clone pulito e CI tre sistemi sono riportati qui al termine delle rispettive esecuzioni. Nessun risultato remoto è presunto.
+Un clone pulito del commit5f57ea6 ha ripetuto l'intera suite: **272 passati,1 skip Windows, zero falliti**,78,95s; import/sintassi/backward CPU passati anche lì. Riutilizzava le dipendenze già installate, con import puntati esclusivamente al clone pulito.
+
+Dopo l'aggiunta della profilazione separata dei costi, la suite sampling è stata ripetuta: **29 passati**, zero falliti/saltati,19,46s. La PR pubblicata è **[#8](https://github.com/ShimOne420/biomap-tessera-v2-finetuning/pull/8)**, verso `feature/finetuning-v2`, senza merge. I successivi esiti di suite completa e CI tre sistemi vengono aggiunti dopo osservazione dei log.

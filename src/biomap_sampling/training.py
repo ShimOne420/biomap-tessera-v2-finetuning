@@ -97,11 +97,14 @@ def fit(train_source,dense_source,training,validation,cfg,folder,tag,seed,resume
             if progress:
                 rate=seen/max(time.perf_counter()-tick,1e-9);progress.update(phase='training',epoch=epoch+1,cells_done=seen,cells_total=len(training),
                     cells_per_second=rate,eta_current_epoch_seconds=(len(training)-seen)/rate,eta_seconds=(len(training)-seen)/rate)
+        train_seconds=time.perf_counter()-tick;validation_started=time.perf_counter()
         score=metrics(predict(model,dense_source,validation,norm,cfg,deadline,progress,'internal_validation'))['macro_aoi_rmse'] if validation is not None else None
+        validation_seconds=time.perf_counter()-validation_started if validation is not None else 0.
         improved=score is None or score<best
         if improved:best=score if score is not None else 0.;best_epoch=epoch+1;stale=0
         else:stale+=1
-        history.append({'epoch':epoch+1,'train_mse':loss_sum/seen,'validation_macro_aoi_rmse':score,'epoch_seconds':time.perf_counter()-tick})
+        history.append({'epoch':epoch+1,'train_mse':loss_sum/seen,'validation_macro_aoi_rmse':score,'epoch_seconds':time.perf_counter()-tick,
+            'training_seconds':train_seconds,'validation_seconds':validation_seconds})
         state={'identity':tag,'epoch':epoch+1,'model':model.state_dict(),'optimizer':optimizer.state_dict(),'normalizer':norm,
             'best':best,'best_epoch':best_epoch,'stale':stale,'history':history,'initialization':initial,
             'rng_python':random.getstate(),'rng_numpy':np.random.get_state(),'rng_torch':torch.get_rng_state(),

@@ -183,9 +183,12 @@ class Study:
                     continue
                 model,norm,_=training.fit(sampled,self.source,train,None,self.cfg,folder,tag,seed,self.resume,epochs,deadline,self.progress)
                 if digest(path)!=decision_sha:raise ValueError('Decisione modificata durante refit')
+                evaluation_started=time.perf_counter()
                 predictions=training.predict(model,self.source,test,norm,self.cfg,deadline,self.progress,'external_evaluation')
+                evaluation_seconds=time.perf_counter()-evaluation_started
                 atomic_frame(folder/'external.parquet',predictions)
-                save_json(final,{'identity':tag,'sha256':digest(folder/'external.parquet'),'decision_sha256':decision_sha,'metrics':metrics(predictions),'refit_epochs':epochs})
+                save_json(final,{'identity':tag,'sha256':digest(folder/'external.parquet'),'decision_sha256':decision_sha,'metrics':metrics(predictions),
+                    'refit_epochs':epochs,'dense_evaluation_seconds':evaluation_seconds})
 
     def global_results(self,mode,seed):
         parts=[]

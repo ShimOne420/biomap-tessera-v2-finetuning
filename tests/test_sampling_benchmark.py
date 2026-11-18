@@ -206,6 +206,12 @@ def test_nested_tiny_end_to_end_no_encoder_no_outer_selection(ready,monkeypatch)
         assert recommended['approved_for_acquisition'] is False and not recommended['proof_of_noninferiority']
         for fold in [1,2]:study.external(fold)
         result=reporting.report(cfg);assert Path(result['report']).exists()
+        budget=reporting.forecast(cfg)
+        assert budget['time']['training_epoch_median_seconds']>0
+        assert budget['time']['validation_epoch_median_seconds']>0
+        assert budget['time']['dense_outer_seconds']>0
+        assert budget['storage']['cache_current_bytes_measured']>0
+        assert (Path(cfg['paths']['output_root'])/'resources_summary.csv').exists()
     finally:study.close()
 
 

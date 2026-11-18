@@ -35,10 +35,19 @@ def forecast(cfg):
         rows.append({'mode':mode,'pixels':pixels,'count_basis':'manifest' if measured else 'PC reference/nominal estimate',
             'cells':measured['cells'] if measured else (min(cfg['sampling']['subset_cells'],127909) if mode=='FULL-SUBSET' else 127909),
             'raw_bytes_estimate':pixels*2956,'embedding_bytes_upper':pixels*512})
-    timings=[];output=cfg['paths'].get('output_root')
+    timings=[];train_times=[];validation_times=[];external_times=[];output=cfg['paths'].get('output_root')
     if output:
         for history in Path(output).rglob('history.json'):
-            timings.extend(x['epoch_seconds'] for x in json.loads(history.read_text(encoding='utf-8')))
+            history=json.loads(history.read_text(encoding='utf-8'))
+            timings.extend(x['epoch_seconds'] for x in history)
+            train_times.extend(x['training_seconds'] for x in history if 'training_seconds' in x)
+            validation_times.extend(x['validation_seconds'] for x in history if 'validation_seconds' in x)
+        for marker in Path(output).rglob('external_complete.json'):
+            marker=json.loads(marker.read_text(encoding='utf-8'))
+            if 'dense_evaluation_seconds' in marker:external_times.append(marker['dense_evaluation_seconds'])
+    cache_marker=Path(path)/'cache.json' if path else None
+    cache_info=json.loads(cache_marker.read_text(encoding='utf-8')) if cache_marker and cache_marker.exists() else {}
+    cache_bytes=sum(p.stat().st_size for p in Path(path).rglob('*') if p.is_file()) if path and Path(path).exists() else None
     # Seven fits/inner split initially: FULL x2, four primary candidates and one diagnostic subset.
     initial=3*2*7;inner_min=initial+3*2*3;inner_max=3*2*(3+4*3+1)
     refit_min=3*3;refit_max=3*2*3
@@ -49,9 +58,16 @@ def forecast(cfg):
         'time':{'epoch_reference_seconds':epoch,'basis':'measured new fit history' if timings else 'PC reported historical 520-590s; NOT a benchmark of new caching',
             'screen_upper_seconds_at_max_epochs':7*cfg['training']['epochs']*epoch,
             'nested_upper_seconds_at_max_epochs':(inner_max+refit_max)*cfg['training']['epochs']*epoch,
-            'cache_seconds':None,'dense_outer_seconds':None,'missing_costs':'cache/validation preprocessing, hash audits and final dense passes need PC pilot measurements'},
+            'training_epoch_median_seconds':float(np.median(train_times)) if train_times else None,
+            'validation_epoch_median_seconds':float(np.median(validation_times)) if validation_times else None,
+            'cache_seconds':cache_info.get('seconds_finalizing_invocation'),
+            'cache_time_note':'last completing invocation only; earlier interrupted invocations excluded',
+            'dense_outer_seconds':float(np.median(external_times)) if external_times else None,
+            'timing_note':'mixed modes/folds/early-stop lengths: measured medians are pilot descriptors, not per-candidate guarantees',
+            'missing_costs':'unmeasured cache/validation preprocessing, hash audits and final dense passes require PC pilot measurements'},
         'storage':{'cache_volume':available(cfg['paths'].get('cache_root')),'output_volume':available(output),'reserve_gib_per_volume':cfg['execution']['reserve_gib'],
             'candidate_embeddings_sum_upper_bytes':sum(r['embedding_bytes_upper'] for r in rows if r['mode']!='FULL'),
+            'cache_current_bytes_measured':cache_bytes,
             'validation_scratch_limit_bytes':cfg['cache']['validation_max_gib']*1024**3,
             'instruction':'Do not add disk capacities. Budget includes manifests, staging, scratch and checkpoint archive. Compression not measured is NOT admission.'},
         'scientific_campaign_authorized':False,'sentinel_acquisition_authorized':False,'note':'12h is an interruptible screening budget, not a completion guarantee'}
@@ -83,7 +99,13 @@ def report(cfg):
         'Solo CNN frozen. Nessuna prova di non inferiorita; nessuna approvazione automatica di acquisizione o fine-tuning.',
         'Le metriche interne sono di selezione. Gli outer valutano la procedura con decisioni interne sigillate.',
         'Le maschere temporali Sentinel non sono contenute negli embedding e restano da verificare in una futura fase autorizzata.','']
-    records=[];outer={}
+    records=[];outer={};resource_rows=[]
+    for path in sorted(root.rglob('resources.json')):
+        resource_rows.append({'fit':path.parent.relative_to(root).as_posix(),**json.loads(path.read_text(encoding='utf-8'))})
+    if resource_rows:
+        pd.json_normalize(resource_rows,sep='_').to_csv(root/'resources_summary.csv',index=False)
+        lines.extend(['Risorse per fit: `resources_summary.csv`; dettagli e tempi separati training/validation nelle history.',
+            'Il picco RAM e del processo per tutta la sua vita, senza memoria dei worker; non e il consumo incrementale del singolo fit.',''])
     for path in sorted(root.rglob('result.json')):
         value=json.loads(path.read_text(encoding='utf-8'));pred=path.parent/'predictions.parquet'
         if digest(pred)!=value['sha256']:raise ValueError('Predizioni interne modificate')

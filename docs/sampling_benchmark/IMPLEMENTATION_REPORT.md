@@ -86,4 +86,16 @@ La sequenza PC è nel [runbook](WINDOWS_RUNBOOK.md): clone/venv/test → doctor/
 
 ### Registro finale di validazione
 
-Questa sezione viene aggiornata con i log realmente osservati prima della consegna; nessun esito remoto o hardware viene presunto.
+Commit codice verificato: **5f57ea66b8c29141286a155fae2870beb8d5dc8d**. macOS26.6.2 arm64, Python3.12.14, Torch2.10.0, CPU, OMP/OPENBLAS/MKL a un thread. È stato riutilizzato un ambiente di sviluppo già installato, puntando gli import al nuovo checkout: non è una prova di reinstallazione completa sul Mac.
+
+| Verifica osservata | Esito |
+|---|---|
+| Suite specifica sampling | **29 passati**, zero falliti/saltati,18,74s |
+| Suite CPU completa del repository | **272 passati,1 saltato**, zero falliti,80,11s |
+| Check ambiente, sintassi e import | **Passato**,158 file Python analizzati, backward CPU passato |
+| Diff contro07dca6b: biomap_spatial, biomap_v2, lock, EOL | **Nessuna modifica** |
+| Contratto r1 con fixture versionata SHA/EOL | Incluso nella suite completa e passato |
+
+L'unico skip della suite Mac è `tests/test_dense_fast.py:277`, blocco di condivisione specifico Windows. La suite emette1447 warning, prevalentemente nelle fixture geospaziali preesistenti: non sono stati disabilitati o trasformati in skip. Il check osserva anche il caso S1 di frontiera già documentato; suite verde non è garanzia di aritmetica bit-identica fra piattaforme. MPS non richiesto e non usato.
+
+Clone pulito e CI tre sistemi sono riportati qui al termine delle rispettive esecuzioni. Nessun risultato remoto è presunto.
